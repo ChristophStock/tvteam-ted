@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  mongo:
+    image: mongo:latest
+    container_name: voting-mongo
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+  backend:
+    build: ./backend
+    container_name: voting-backend
+    ports:
+      - '4000:4000'
+    environment:
+      - MONGO_URL=mongodb://mongo:27017/voting
+    depends_on:
+      - mongo
+  frontend:
+    build: ./frontend
+    container_name: voting-frontend
+    ports:
+      - '3000:3000'
+    depends_on:
+      - backend
+volumes:
+  mongo-data:
