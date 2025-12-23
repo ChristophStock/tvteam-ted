@@ -1,12 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { Container, Typography, Button, Box } from "@mui/material";
+import { useRef } from "react";
 import { io } from "socket.io-client";
 
 const socket = io("http://localhost:4000");
 
-export default function VotePage() {
+function VotePage() {
   const [question, setQuestion] = useState(null);
   const [voted, setVoted] = useState(false);
+  const [emojis, setEmojis] = useState([]);
+  // Masked Singer themed emoji set
+  const emojiList = ["🎭", "🎤", "🦄", "🦋", "🦚", "🦜", "✨", "🎶"];
+  const emojiRefs = useRef([]);
 
   useEffect(() => {
     socket.emit("getActiveQuestion");
@@ -28,19 +33,100 @@ export default function VotePage() {
     }).then(() => setVoted(true));
   };
 
+  // Emoji animation logic
+  const sendEmoji = (emoji) => {
+    // Zufällige Richtung und Schwankung
+    const side = Math.random() < 0.5 ? "left" : "right";
+    const sway = Math.round(30 + Math.random() * 60) * (Math.random() < 0.5 ? -1 : 1); // px
+    // Zufällige Endhöhe (zwischen 40vh und 70vh)
+    const endHeight = 40 + Math.random() * 30; // vh
+    socket.emit("sendEmoji", { emoji, side, sway, endHeight });
+    // Lokal anzeigen (damit Animation sofort startet)
+    const id = Date.now() + Math.random();
+    setEmojis((prev) => [...prev, { id, emoji, side, sway, endHeight }]);
+    setTimeout(() => {
+      setEmojis((prev) => prev.filter((e) => e.id !== id));
+    }, 2200);
+  };
+
   if (!question)
     return (
-      <Container>
-        <Typography variant="h5">Keine aktive Frage</Typography>
-      </Container>
+      <Box minHeight="100vh" display="flex" flexDirection="column" alignItems="center" justifyContent="center" sx={{ background: '#23242a' }}>
+        <Typography variant="h3" sx={{ color: '#fff1f7', mb: 4, textShadow: '2px 2px 12px #ab218e' }}>
+          Keine aktive Frage
+        </Typography>
+        {/* Emoji Buttons always visible */}
+        <Box position="fixed" left={0} right={0} bottom={32} display="flex" justifyContent="center" gap={2} zIndex={10}>
+          {emojiList.map((emoji, idx) => (
+            <Button key={idx} variant="outlined" sx={{ fontSize: 40, background: 'rgba(255,255,255,0.15)' }} onClick={() => sendEmoji(emoji)} className="emoji-confetti">
+              {emoji}
+            </Button>
+          ))}
+        </Box>
+        {/* Emoji Animations */}
+        {emojis.map((e) => (
+          <Box
+            key={e.id}
+            sx={{
+              position: "fixed",
+              [e.side]: 8,
+              bottom: 32,
+              fontSize: 48,
+              zIndex: 20,
+              animation: `flyUpVar${e.id} 2.1s cubic-bezier(.4,.01,.6,1)`,
+              '--sway': `${e.sway}px`,
+              '--sway-half': `${e.sway / 2}px`,
+              '--endHeight': `${e.endHeight}vh`,
+              filter: 'drop-shadow(0 0 16px #fff) drop-shadow(0 0 32px #ab218e)',
+              pointerEvents: 'none',
+            }}
+          >
+            {e.emoji}
+            <style>{`
+              @keyframes flyUpVar${e.id} {
+                0% { transform: translateY(0) translateX(0); opacity: 1; }
+                20% { transform: translateY(calc(-0.2 * var(--endHeight, 60vh))) translateX(var(--sway-half, 0px)); }
+                40% { transform: translateY(calc(-0.4 * var(--endHeight, 60vh))) translateX(calc(var(--sway-half, 0px) * -1)); }
+                60% { transform: translateY(calc(-0.6 * var(--endHeight, 60vh))) translateX(var(--sway, 0px)); }
+                80% { transform: translateY(calc(-0.8 * var(--endHeight, 60vh))) translateX(calc(var(--sway, 0px) * -1)); opacity: 0.9; }
+                100% { transform: translateY(calc(-1 * var(--endHeight, 60vh))) translateX(0); opacity: 0; }
+              }
+            `}</style>
+          </Box>
+        ))}
+      </Box>
     );
 
   return (
-    <Container maxWidth="sm">
-      <Typography variant="h5" gutterBottom>
+    <Box
+      minHeight="100vh"
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="flex-start"
+      sx={{ background: '#23242a', p: 0, pt: { xs: '84px', sm: '120px' } }}
+    >
+      <Typography
+        variant="h2"
+        gutterBottom
+        sx={{
+          color: '#fff1f7',
+          textShadow: '2px 2px 12px #ab218e, 0 0 24px #fff',
+          mb: { xs: 2, sm: 4 },
+          fontSize: { xs: '1.3em', sm: '2.2em' },
+          textAlign: 'center',
+        }}
+      >
         {question.text}
       </Typography>
-      <Box display="flex" flexDirection="column" gap={2}>
+      <Box
+        display="flex"
+        flexDirection="column"
+        gap={2}
+        width="100%"
+        maxWidth={480}
+        sx={{ px: { xs: 2, sm: 0 } }}
+      >
         {question.options.map((opt, idx) => (
           <Button
             key={idx}
@@ -48,16 +134,91 @@ export default function VotePage() {
             fullWidth
             onClick={() => vote(idx)}
             disabled={voted}
+            sx={{
+              fontSize: { xs: '1.1em', sm: '1.5em' },
+              py: { xs: 1.2, sm: 2 },
+              background: 'linear-gradient(90deg, #ffb347 0%, #ffcc33 100%)',
+              color: '#6a0572',
+              border: '2px solid #fff1f7',
+              boxShadow: '0 2px 12px #ab218e55',
+              mb: 1,
+              fontFamily: 'Luckiest Guy, Comic Sans MS, cursive, sans-serif',
+            }}
           >
             {opt}
           </Button>
         ))}
       </Box>
       {voted && (
-        <Typography color="success.main" mt={2}>
+        <Typography sx={{ color: '#ffb347', mt: 3, fontSize: '1.3em', textShadow: '0 0 8px #fff' }}>
           Danke für deine Stimme!
         </Typography>
       )}
-    </Container>
+      {/* Emoji Buttons at bottom */}
+      <Box
+        position="fixed"
+        left={0}
+        right={0}
+        bottom={32}
+        display="grid"
+        gridTemplateColumns={{ xs: 'repeat(4, 1fr)', sm: 'repeat(4, 1fr)' }}
+        gridTemplateRows={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)' }}
+        gap={2}
+        justifyContent="center"
+        alignItems="center"
+        zIndex={10}
+        width="100vw"
+        maxWidth={480}
+        margin="0 auto"
+        sx={{ px: { xs: 2, sm: 0 } }}
+      >
+        {emojiList.map((emoji, idx) => (
+          <Button
+            key={idx}
+            variant="outlined"
+            sx={{ fontSize: 40, background: 'rgba(255,255,255,0.15)', minWidth: 0, width: '100%', aspectRatio: '1/1' }}
+            onClick={() => sendEmoji(emoji)}
+            className="emoji-confetti"
+          >
+            {emoji}
+          </Button>
+        ))}
+      </Box>
+      {/* Emoji Animations */}
+      {emojis.map((e) => (
+        <Box
+          key={e.id}
+          sx={{
+            position: "fixed",
+            [e.side]: 8,
+            bottom: 32,
+            fontSize: 48,
+            zIndex: 20,
+            animation: `flyUpVar${e.id} 2.1s cubic-bezier(.4,.01,.6,1)`,
+            '--sway': `${e.sway}px`,
+            '--sway-half': `${e.sway / 2}px`,
+            '--endHeight': `${e.endHeight}vh`,
+            filter: 'drop-shadow(0 0 16px #fff) drop-shadow(0 0 32px #ab218e)',
+            pointerEvents: 'none',
+          }}
+        >
+          {e.emoji}
+          <style>{`
+            @keyframes flyUpVar${e.id} {
+              0% { transform: translateY(0) translateX(0); opacity: 1; }
+              20% { transform: translateY(calc(-0.2 * var(--endHeight, 60vh))) translateX(var(--sway-half, 0px)); }
+              40% { transform: translateY(calc(-0.4 * var(--endHeight, 60vh))) translateX(calc(var(--sway-half, 0px) * -1)); }
+              60% { transform: translateY(calc(-0.6 * var(--endHeight, 60vh))) translateX(var(--sway, 0px)); }
+              80% { transform: translateY(calc(-0.8 * var(--endHeight, 60vh))) translateX(calc(var(--sway, 0px) * -1)); opacity: 0.9; }
+              100% { transform: translateY(calc(-1 * var(--endHeight, 60vh))) translateX(0); opacity: 0; }
+            }
+          `}</style>
+        </Box>
+      ))}
+    </Box>
   );
 }
+
+export default VotePage;
+
+// ...existing code...

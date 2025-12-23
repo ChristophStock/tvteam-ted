@@ -64,6 +64,31 @@ app.get("/api/questions", async (req, res) => {
   }
 });
 
+// Delete a question
+app.delete("/api/questions/:id", async (req, res) => {
+  try {
+    await Question.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Fehler beim Löschen der Frage" });
+  }
+});
+
+// Reset results for a question
+app.post("/api/questions/:id/reset", async (req, res) => {
+  try {
+    const question = await Question.findById(req.params.id);
+    if (!question)
+      return res.status(404).json({ error: "Frage nicht gefunden" });
+    question.results = Array(question.options.length).fill(0);
+    question.closed = false;
+    await question.save();
+    res.json(question);
+  } catch (err) {
+    res.status(500).json({ error: "Fehler beim Zurücksetzen der Frage" });
+  }
+});
+
 app.post("/api/questions", async (req, res) => {
   try {
     const { text, options } = req.body;
@@ -118,6 +143,12 @@ io.on("connection", (socket) => {
   socket.on("getActiveQuestion", async () => {
     const question = await Question.findOne({ active: true });
     socket.emit("activeQuestion", question);
+  });
+  socket.on("sendEmoji", (data) => {
+    io.emit("showEmoji", data);
+  });
+  socket.on("setResultView", (view) => {
+    io.emit("resultView", view);
   });
 });
 
