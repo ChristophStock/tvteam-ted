@@ -15,11 +15,14 @@ services:
       - MONGO_URL=mongodb://mongo:27017/voting
       - VITE_CONTROL_PASSWORD=meinPasswort
       - VITE_ALLOWED_HOSTS=localhost,example.com
+      - VITE_VOTING_TITLE=Masked Singer Voting
     depends_on:
       - mongo
   frontend:
     build: ./frontend
     container_name: voting-frontend
+    environment:
+      - VITE_VOTING_TITLE=Masked Singer Voting
     depends_on:
       - backend
   nginx:

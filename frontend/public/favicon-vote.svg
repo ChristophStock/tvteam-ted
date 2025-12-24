@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+	<!-- Gold circle with black border -->
+	<circle cx="32" cy="36" r="24" fill="#FFD700" stroke="#111" stroke-width="4"/>
+	<!-- Voting checkmark in black -->
+	<text x="32" y="48" text-anchor="middle" font-size="28" font-family="Arial, Helvetica, sans-serif" fill="#111" font-weight="bold">✔️</text>
+	<!-- Carnival hat (Karnevalsmütze) on top of the circle -->
+	<g>
+		<!-- Hat base (gold) -->
+		<ellipse cx="32" cy="16" rx="14" ry="6" fill="#FFD700" stroke="#111" stroke-width="2"/>
+		<!-- Hat left feather (black) -->
+		<path d="M24 12 Q22 6 28 10" fill="none" stroke="#111" stroke-width="2"/>
+		<!-- Hat right feather (black) -->
+		<path d="M40 12 Q42 6 36 10" fill="none" stroke="#111" stroke-width="2"/>
+		<!-- Hat center feather (gold, outlined) -->
+		<path d="M32 10 Q32 4 34 12" fill="none" stroke="#FFD700" stroke-width="2"/>
+		<path d="M32 10 Q32 4 34 12" fill="none" stroke="#111" stroke-width="0.8"/>
+		<!-- Hat band (black) -->
+		<ellipse cx="32" cy="18" rx="12" ry="2.5" fill="#111"/>
+	</g>
+</svg>

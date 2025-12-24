@@ -60,6 +60,7 @@ app.get("/api/config", (req, res) => {
   res.json({
     controlPassword: process.env.VITE_CONTROL_PASSWORD || "",
     allowedHosts: process.env.VITE_ALLOWED_HOSTS || "",
+    title: process.env.VITE_VOTING_TITLE || "Voting App",
   });
 });
 app.get("/api/questions", async (req, res) => {

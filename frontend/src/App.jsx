@@ -8,15 +8,15 @@ import { AppBar, Toolbar, Button, Container } from "@mui/material";
 
 
 
-export default function App() {
+export default function App({ title }) {
   return (
     <BrowserRouter>
-      <AppContent />
+      <AppContent title={title} />
     </BrowserRouter>
   );
 }
 
-function AppContent() {
+function AppContent({ title }) {
   const location = useLocation();
   const isVotePage = location.pathname === "/vote";
   const isResultPage = location.pathname === "/result";
@@ -25,6 +25,7 @@ function AppContent() {
       {!(isVotePage || isResultPage) && (
         <AppBar position="static" sx={{ background: "linear-gradient(90deg, #6a0572 0%, #ab218e 100%)", boxShadow: "0 4px 20px #ab218e88" }}>
           <Toolbar>
+            <span style={{ flex: 1, fontWeight: 700, fontSize: '1.3em', fontFamily: 'Luckiest Guy, Comic Sans MS, cursive, sans-serif', letterSpacing: 2 }}>{title || 'Voting App'}</span>
             <Button color="inherit" component={Link} to="/control">
               Kontrollseite
             </Button>
