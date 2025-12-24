@@ -3,12 +3,13 @@ import { Container, Typography, Button, Box } from "@mui/material";
 import { useRef } from "react";
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:4000");
+const socket = io({ path: "/socket.io" });
 
 function VotePage() {
   const [question, setQuestion] = useState(null);
   const [voted, setVoted] = useState(false);
   const [emojis, setEmojis] = useState([]);
+  const [view, setView] = useState("default"); // "default" | "results" | "singing"
   // Masked Singer themed emoji set
   const emojiList = ["🎭", "🎤", "🦄", "🦋", "🦚", "🦜", "✨", "🎶"];
   const emojiRefs = useRef([]);
@@ -18,10 +19,12 @@ function VotePage() {
     socket.on("activeQuestion", setQuestion);
     socket.on("questionActivated", setQuestion);
     socket.on("questionClosed", () => setQuestion(null));
+    socket.on("resultView", setView);
     return () => {
       socket.off("activeQuestion");
       socket.off("questionActivated");
       socket.off("questionClosed");
+      socket.off("resultView");
     };
   }, []);
 
@@ -49,6 +52,55 @@ function VotePage() {
     }, 2200);
   };
 
+  // Ausblenden, wenn view nicht default
+  if (view !== "default") {
+    return (
+      <Box minHeight="100vh" display="flex" flexDirection="column" alignItems="center" justifyContent="center" sx={{ background: '#23242a' }}>
+        <Typography variant="h3" sx={{ color: '#fff1f7', mb: 4, textShadow: '2px 2px 12px #ab218e' }}>
+          Abstimmung ist aktuell nicht möglich
+        </Typography>
+        {/* Emoji Buttons zweispaltig */}
+        <Box position="fixed" left={0} right={0} bottom={32} display="grid" gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)' }} gap={2} zIndex={10} width="100vw" maxWidth={320} margin="0 auto" sx={{ px: { xs: 2, sm: 0 } }}>
+          {emojiList.map((emoji, idx) => (
+            <Button key={idx} variant="outlined" sx={{ fontSize: 40, background: 'rgba(255,255,255,0.15)', minWidth: 0, width: '100%', aspectRatio: '1/1' }} onClick={() => sendEmoji(emoji)} className="emoji-confetti">
+              {emoji}
+            </Button>
+          ))}
+        </Box>
+        {/* Emoji Animations */}
+        {emojis.map((e) => (
+          <Box
+            key={e.id}
+            sx={{
+              position: "fixed",
+              [e.side]: 8,
+              bottom: 32,
+              fontSize: 48,
+              zIndex: 20,
+              animation: `flyUpVar${e.id} 2.1s cubic-bezier(.4,.01,.6,1)`,
+              '--sway': `${e.sway}px`,
+              '--sway-half': `${e.sway / 2}px`,
+              '--endHeight': `${e.endHeight}vh`,
+              filter: 'drop-shadow(0 0 16px #fff) drop-shadow(0 0 32px #ab218e)',
+              pointerEvents: 'none',
+            }}
+          >
+            {e.emoji}
+            <style>{`
+              @keyframes flyUpVar${e.id} {
+                0% { transform: translateY(0) translateX(0); opacity: 1; }
+                20% { transform: translateY(calc(-0.2 * var(--endHeight, 60vh))) translateX(var(--sway-half, 0px)); }
+                40% { transform: translateY(calc(-0.4 * var(--endHeight, 60vh))) translateX(calc(var(--sway-half, 0px) * -1)); }
+                60% { transform: translateY(calc(-0.6 * var(--endHeight, 60vh))) translateX(var(--sway, 0px)); }
+                80% { transform: translateY(calc(-0.8 * var(--endHeight, 60vh))) translateX(calc(var(--sway, 0px) * -1)); opacity: 0.9; }
+                100% { transform: translateY(calc(-1 * var(--endHeight, 60vh))) translateX(0); opacity: 0; }
+              }
+            `}</style>
+          </Box>
+        ))}
+      </Box>
+    );
+  }
   if (!question)
     return (
       <Box minHeight="100vh" display="flex" flexDirection="column" alignItems="center" justifyContent="center" sx={{ background: '#23242a' }}>

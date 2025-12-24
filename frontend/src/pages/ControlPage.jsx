@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:4000");
+const socket = io({ path: "/socket.io" });
 
 export default function ControlPage() {
   const [questions, setQuestions] = useState([]);
@@ -218,12 +218,28 @@ export default function ControlPage() {
                       mb: 1,
                       boxShadow: q.active ? 2 : 0,
                       outline: q._id === activeId ? '2px solid #1976d2' : undefined,
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
                     }}
                   >
                     <ListItemText
                       primary={q.text}
                       secondary={q.options.join(", ")}
                     />
+                    {/* Ergebnisse je Option anzeigen */}
+                    {Array.isArray(q.results) && q.results.length === q.options.length && (
+                      <Box display="flex" flexWrap="wrap" gap={1} mb={1} mt={0.5}>
+                        {q.options.map((opt, idx) => (
+                          <Chip
+                            key={opt + idx}
+                            label={`${opt}: ${q.results[idx] ?? 0}`}
+                            color="default"
+                            size="small"
+                            sx={{ background: '#fff1f7', color: '#6a0572', fontWeight: 700, fontFamily: 'Luckiest Guy, Comic Sans MS, cursive, sans-serif' }}
+                          />
+                        ))}
+                      </Box>
+                    )}
                     <Box display="flex" alignItems="center" gap={1}>
                       {q.active ? (
                         <Chip label="Aktiv" color="primary" size="small" />
