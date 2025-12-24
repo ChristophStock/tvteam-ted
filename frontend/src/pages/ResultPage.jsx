@@ -161,12 +161,7 @@ export default function ResultPage() {
         })}
       </Box>
       <Typography mt={2} sx={{ color: '#ffb347', fontSize: '2em', textShadow: '0 0 12px #fff', mb: 2 }}>Gesamtstimmen: {totalVotes}</Typography>
-      {/* Emoji Buttons zweispaltig */}
-      <Box position="fixed" left={0} right={0} bottom={32} display="grid" gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)' }} gap={2} zIndex={10} width="100vw" maxWidth={320} margin="0 auto" sx={{ px: { xs: 2, sm: 0 } }}>
-        {emojiList.map((emoji, idx) => (
-          <Box key={idx} sx={{ fontSize: 40, background: 'rgba(255,255,255,0.15)', minWidth: 0, width: '100%', aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 2, border: '1px solid #fff1f7' }}>{emoji}</Box>
-        ))}
-      </Box>
+      {/* No emoji buttons in result view */}
       {/* Balloon Animations */}
       {emojis.map((e) => (
         <BalloonAnimation

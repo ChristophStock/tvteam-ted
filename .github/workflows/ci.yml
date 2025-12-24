@@ -63,13 +63,15 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Build frontend image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/tvteam-ted-frontend:${{ github.sha }} ./frontend
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/tvteam-ted-frontend:${{ github.sha }} -t ${{ secrets.DOCKER_USERNAME }}/tvteam-ted-frontend:latest ./frontend
       - name: Build backend image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/tvteam-ted-backend:${{ github.sha }} ./backend
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/tvteam-ted-backend:${{ github.sha }} -t ${{ secrets.DOCKER_USERNAME }}/tvteam-ted-backend:latest ./backend
       - name: Push frontend image
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/tvteam-ted-frontend:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/tvteam-ted-frontend:latest
       - name: Push backend image
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/tvteam-ted-backend:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/tvteam-ted-backend:latest
