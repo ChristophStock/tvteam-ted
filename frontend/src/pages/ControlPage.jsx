@@ -27,13 +27,21 @@ export default function ControlPage() {
   const [resultView, setResultView] = useState("default"); // "default" | "results" | "singing"
   const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
-  const CONTROL_PASSWORD = import.meta.env.VITE_CONTROL_PASSWORD;
+  const [config, setConfig] = useState({ controlPassword: "", allowedHosts: "" });
+
 
   // Result view control
   const setResultScreen = (view) => {
     setResultView(view);
     socket.emit("setResultView", view);
   };
+
+  // Hole Config (Passwort, Domain) zur Laufzeit
+  useEffect(() => {
+    fetch("/api/config")
+      .then((res) => res.json())
+      .then(setConfig);
+  }, []);
 
   const fetchQuestions = () => {
     fetch("/api/questions")
@@ -68,7 +76,7 @@ export default function ControlPage() {
 
   const handlePasswordSubmit = (e) => {
     e.preventDefault();
-    if (password === CONTROL_PASSWORD) {
+    if (password === config.controlPassword) {
       setAuthenticated(true);
     } else {
       alert("Falsches Passwort");

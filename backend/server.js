@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const mongoose = require("mongoose");
@@ -53,6 +54,14 @@ const QuestionSchema = new mongoose.Schema({
 const Question = mongoose.model("Question", QuestionSchema);
 
 // REST API
+
+// API-Route für Konfigurationswerte (Passwort, Domain)
+app.get("/api/config", (req, res) => {
+  res.json({
+    controlPassword: process.env.VITE_CONTROL_PASSWORD || "",
+    allowedHosts: process.env.VITE_ALLOWED_HOSTS || "",
+  });
+});
 app.get("/api/questions", async (req, res) => {
   try {
     const questions = await Question.find();
