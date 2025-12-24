@@ -1,14 +1,20 @@
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default {
+export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      "/api": {
-        target: "http://backend:4000",
-        changeOrigin: true,
-        secure: false,
+      "/api": "http://localhost:4000",
+      "/socket.io": {
+        target: "ws://localhost:4000",
+        ws: true,
       },
     },
   },
-};
+  preview: {
+    allowedHosts: (process.env.VITE_ALLOWED_HOSTS || "tvteamted.csma-stock.de")
+      .split(",")
+      .map((h) => h.trim()),
+  },
+});
