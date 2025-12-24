@@ -1,13 +1,17 @@
-import React, { useEffect, useState } from "react";
+
+import React, { useEffect, useState, useRef } from "react";
 import { Container, Typography, Box } from "@mui/material";
 import MaskedSingerLogo from "../MaskedSingerLogo";
 import { io } from "socket.io-client";
+import BalloonAnimation from "../BalloonAnimation";
+import "../style/balloon.css";
 
 const socket = io("http://localhost:4000");
 
 export default function ResultPage() {
   const [question, setQuestion] = useState(null);
   const [emojis, setEmojis] = useState([]);
+  const sceneRef = useRef();
   const [view, setView] = useState("default"); // "default" | "results"
 
   useEffect(() => {
@@ -15,23 +19,34 @@ export default function ResultPage() {
     socket.on("activeQuestion", setQuestion);
     socket.on("voteUpdate", setQuestion);
     socket.on("questionClosed", setQuestion);
+    // Emojis nur anzeigen, wenn showEmoji kommt (z.B. von VotePage)
     socket.on("showEmoji", (data) => {
+      const emojisArr = ["🎈", "🎈", "🎈", "🎉", "🎊", "🎈", "🎈", "🎈"];
+      const emoji = data.emoji || emojisArr[Math.floor(Math.random() * emojisArr.length)];
+      const sceneWidth = sceneRef.current ? sceneRef.current.offsetWidth : window.innerWidth;
+      let startX;
+      if (Math.random() < 0.5) {
+        startX = Math.random() * (sceneWidth * 0.25);
+      } else {
+        startX = sceneWidth * 0.75 + Math.random() * (sceneWidth * 0.25);
+      }
+      const duration = Math.random() * 8 + 8;
+      const swayDuration = Math.random() * 3 + 2.5;
+      const size = Math.random() * 1.6 + 1.7;
+      const fadeStart = Math.random() * 0.2 + 0.6;
       const id = Date.now() + Math.random();
-      // Zufällige X-Position im linken oder rechten Drittel
-      const side = Math.random() < 0.5 ? "left" : "right";
-      const min = side === "left" ? 5 : 66;
-      const max = side === "left" ? 33 : 94;
-      const left = `${Math.round(min + Math.random() * (max - min))}vw`;
-      // Schwankung für Ballonbewegung
-      const sway = typeof data.sway === "number" ? data.sway : Math.round(30 + Math.random() * 40) * (Math.random() < 0.5 ? -1 : 1);
-      // Endhöhe (wie hoch der Ballon steigt)
-      const endHeight = data.endHeight || 60 + Math.random() * 20; // vh
-      setEmojis((prev) => [...prev, { ...data, id, left, sway, endHeight }]);
-      setTimeout(() => {
-        setEmojis((prev) => prev.filter((e) => e.id !== id));
-      }, 2200);
+        setEmojis((prev) => {
+          // Verhindere doppelte Emojis beim View-Wechsel: nur hinzufügen, wenn id noch nicht existiert
+          if (prev.some((b) => b.id === id)) return prev;
+          return [...prev, { id, emoji, startX, duration, swayDuration, size, fadeStart }];
+        });
     });
-    socket.on("resultView", setView);
+    socket.on("resultView", (v) => {
+      setView(v);
+      // Emojis beim Statuswechsel leeren, damit keine alten erneut animiert werden
+      setEmojis([]);
+    });
+    // Keine Rücksetzung der Emojis bei View-Wechsel!
     return () => {
       socket.off("activeQuestion");
       socket.off("voteUpdate");
@@ -43,8 +58,21 @@ export default function ResultPage() {
 
   if (view === "singing") {
     return (
-      <Box sx={{ background: '#23242a', minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, zIndex: 1 }}>
+      <Box ref={sceneRef} className="scene" sx={{ background: '#23242a', minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, zIndex: 1, overflow: 'hidden' }}>
         <MaskedSingerLogo style={{ maxWidth: 600, width: '80vw' }} />
+        {/* Balloon Animations auch im Singen-Modus */}
+        {emojis.map((e) => (
+          <BalloonAnimation
+            key={e.id}
+            emoji={e.emoji}
+            startX={e.startX}
+            duration={e.duration}
+            swayDuration={e.swayDuration}
+            size={e.size}
+            fadeStart={e.fadeStart}
+            onRemove={() => setEmojis((prev) => prev.filter((b) => b.id !== e.id))}
+          />
+        ))}
       </Box>
     );
   }
@@ -59,43 +87,25 @@ export default function ResultPage() {
 
   if (view === "default") {
     return (
-      <Box sx={{ position: "fixed", top: 0, left: 0, width: '100vw', height: '100vh', minHeight: '100vh', background: '#23242a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
+      <Box ref={sceneRef} className="scene" sx={{ position: "fixed", top: 0, left: 0, width: '100vw', height: '100vh', minHeight: '100vh', background: '#23242a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1, overflow: 'hidden' }}>
         <Typography variant="h4" gutterBottom sx={{ color: '#fff1f7', textShadow: '2px 2px 12px #ab218e' }}>
           Fragerunde aktiv
         </Typography>
         <Typography variant="body1" sx={{ color: '#fff1f7', mb: 4, opacity: 0.8 }}>
           Die Fragerunde läuft. Ergebnisse werden später angezeigt.
         </Typography>
-        {/* Emoji Animations */}
+        {/* Balloon Animations */}
         {emojis.map((e) => (
-          <Box
+          <BalloonAnimation
             key={e.id}
-            sx={{
-              position: "fixed",
-              left: e.left,
-              bottom: 32,
-              fontSize: 56,
-              zIndex: 20,
-              animation: `flyUpVar${e.id} 2.1s cubic-bezier(.4,.01,.6,1)`,
-              '--sway': `${e.sway}px`,
-              '--sway-half': `${e.sway / 2}px`,
-              '--endHeight': `${e.endHeight}vh`,
-              filter: 'drop-shadow(0 0 16px #fff) drop-shadow(0 0 32px #ab218e)',
-              pointerEvents: 'none',
-            }}
-          >
-            {e.emoji}
-            <style>{`
-              @keyframes flyUpVar${e.id} {
-                0% { transform: translateY(0) translateX(0); opacity: 1; }
-                20% { transform: translateY(calc(-0.2 * var(--endHeight, 60vh))) translateX(var(--sway-half, 0px)); }
-                40% { transform: translateY(calc(-0.4 * var(--endHeight, 60vh))) translateX(calc(var(--sway-half, 0px) * -1)); }
-                60% { transform: translateY(calc(-0.6 * var(--endHeight, 60vh))) translateX(var(--sway, 0px)); }
-                80% { transform: translateY(calc(-0.8 * var(--endHeight, 60vh))) translateX(calc(var(--sway, 0px) * -1)); opacity: 0.9; }
-                100% { transform: translateY(calc(-1 * var(--endHeight, 60vh))) translateX(0); opacity: 0; }
-              }
-            `}</style>
-          </Box>
+            emoji={e.emoji}
+            startX={e.startX}
+            duration={e.duration}
+            swayDuration={e.swayDuration}
+            size={e.size}
+            fadeStart={e.fadeStart}
+            onRemove={() => setEmojis((prev) => prev.filter((b) => b.id !== e.id))}
+          />
         ))}
       </Box>
     );
@@ -103,7 +113,7 @@ export default function ResultPage() {
 
   // Ergebnisansicht
   return (
-    <Box sx={{ position: "fixed", top: 0, left: 0, width: '100vw', height: '100vh', minHeight: '100vh', background: '#23242a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1, overflow: 'hidden' }}>
+    <Box ref={sceneRef} className="scene" sx={{ position: "fixed", top: 0, left: 0, width: '100vw', height: '100vh', minHeight: '100vh', background: '#23242a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1, overflow: 'hidden' }}>
       <Typography variant="h4" gutterBottom sx={{ color: '#fff1f7', textShadow: '2px 2px 12px #ab218e', mt: 2 }}>
         {question?.text}
       </Typography>
@@ -143,36 +153,18 @@ export default function ResultPage() {
         })}
       </Box>
       <Typography mt={2} sx={{ color: '#ffb347', fontSize: '2em', textShadow: '0 0 12px #fff', mb: 2 }}>Gesamtstimmen: {totalVotes}</Typography>
-      {/* Emoji Animations */}
+      {/* Balloon Animations */}
       {emojis.map((e) => (
-        <Box
+        <BalloonAnimation
           key={e.id}
-          sx={{
-            position: "fixed",
-            left: e.left ?? `${Math.random() * 90}vw`,
-            bottom: 32,
-            fontSize: 56,
-            zIndex: 20,
-            animation: `flyUpVar${e.id} 2.1s cubic-bezier(.4,.01,.6,1)`,
-            '--sway': `${e.sway}px`,
-            '--sway-half': `${e.sway / 2}px`,
-            '--endHeight': `${e.endHeight}vh`,
-            filter: 'drop-shadow(0 0 16px #fff) drop-shadow(0 0 32px #ab218e)',
-            pointerEvents: 'none',
-          }}
-        >
-          {e.emoji}
-          <style>{`
-            @keyframes flyUpVar${e.id} {
-              0% { transform: translateY(0) translateX(0); opacity: 1; }
-              20% { transform: translateY(calc(-0.2 * var(--endHeight, 60vh))) translateX(var(--sway-half, 0px)); }
-              40% { transform: translateY(calc(-0.4 * var(--endHeight, 60vh))) translateX(calc(var(--sway-half, 0px) * -1)); }
-              60% { transform: translateY(calc(-0.6 * var(--endHeight, 60vh))) translateX(var(--sway, 0px)); }
-              80% { transform: translateY(calc(-0.8 * var(--endHeight, 60vh))) translateX(calc(var(--sway, 0px) * -1)); opacity: 0.9; }
-              100% { transform: translateY(calc(-1 * var(--endHeight, 60vh))) translateX(0); opacity: 0; }
-            }
-          `}</style>
-        </Box>
+          emoji={e.emoji}
+          startX={e.startX}
+          duration={e.duration}
+          swayDuration={e.swayDuration}
+          size={e.size}
+          fadeStart={e.fadeStart}
+          onRemove={() => setEmojis((prev) => prev.filter((b) => b.id !== e.id))}
+        />
       ))}
     </Box>
   );
