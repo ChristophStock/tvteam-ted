@@ -53,6 +53,12 @@ const QuestionSchema = new mongoose.Schema({
 });
 const Question = mongoose.model("Question", QuestionSchema);
 
+// GlobalStatus Model
+const GlobalStatusSchema = new mongoose.Schema({
+  view: { type: String, default: "default" }, // "default" | "results" | "singing"
+});
+const GlobalStatus = mongoose.model("GlobalStatus", GlobalStatusSchema);
+
 // REST API
 
 // API-Route für Konfigurationswerte (Passwort, Domain)
@@ -62,6 +68,12 @@ app.get("/api/config", (req, res) => {
     allowedHosts: process.env.VITE_ALLOWED_HOSTS || "",
     title: process.env.VITE_VOTING_TITLE || "Voting App",
   });
+});
+
+// API: Get global status
+app.get("/api/global-status", async (req, res) => {
+  const status = await GlobalStatus.findOne();
+  res.json({ view: status?.view || "default" });
 });
 app.get("/api/questions", async (req, res) => {
   try {
@@ -124,6 +136,11 @@ app.post("/api/questions/:id/activate", async (req, res) => {
     active: true,
     closed: false,
   });
+  console.log(
+    `[STATUS] Frage aktiviert: id=${req.params.id}, text='${
+      question?.text || "?"
+    }'`
+  );
   io.emit("questionActivated", question);
   res.json(question);
 });
@@ -133,23 +150,51 @@ app.post("/api/questions/:id/close", async (req, res) => {
     closed: true,
     active: false,
   });
+  console.log(
+    `[STATUS] Frage geschlossen: id=${req.params.id}, text='${
+      question?.text || "?"
+    }'`
+  );
   io.emit("questionClosed", question);
   res.json(question);
 });
 
+// Vote endpoint: block if not active
 app.post("/api/questions/:id/vote", async (req, res) => {
   const { option } = req.body;
   const question = await Question.findById(req.params.id);
-  if (!question || !question.active || question.closed)
-    return res.status(400).json({ error: "Voting not allowed" });
+  if (!question) {
+    console.warn(`[VOTE] No question found for id ${req.params.id}`);
+    return res.status(404).json({ error: "No such question" });
+  }
+  if (!question.active || question.closed) {
+    console.warn(
+      `[VOTE] Vote blocked: not active or closed. id=${req.params.id}`
+    );
+    return res.status(400).json({ error: "Voting not allowed: not active" });
+  }
   question.results[option]++;
   await question.save();
   io.emit("voteUpdate", question);
   res.json(question);
 });
 
+// New: Get current voting status (active question or not)
+app.get("/api/voting-status", async (req, res) => {
+  const question = await Question.findOne({ active: true });
+  if (question && !question.closed) {
+    res.json({ active: true, question });
+  } else {
+    res.json({ active: false, question: null });
+  }
+});
+
 // WebSocket Events
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
+  // Sende aktuellen globalen Status direkt nach Verbindung
+  const status = await GlobalStatus.findOne();
+  socket.emit("resultView", status?.view || "default");
+
   socket.on("getActiveQuestion", async () => {
     const question = await Question.findOne({ active: true });
     socket.emit("activeQuestion", question);
@@ -157,12 +202,37 @@ io.on("connection", (socket) => {
   socket.on("sendEmoji", (data) => {
     io.emit("showEmoji", data);
   });
-  socket.on("setResultView", (view) => {
+  socket.on("setResultView", async (view) => {
+    let statusText = "[STATUS] Globaler Status geändert: ";
+    if (view === "question") {
+      statusText += "Fragerunde aktiv";
+    } else if (view === "results") {
+      statusText += "Ergebnisse anzeigen";
+    } else if (view === "singing") {
+      statusText += "Singen";
+    } else {
+      statusText += `Unbekannt (${view})`;
+    }
+    console.log(statusText);
+    // Speichere neuen Status in DB
+    let statusDoc = await GlobalStatus.findOne();
+    if (!statusDoc) {
+      statusDoc = new GlobalStatus({ view });
+    } else {
+      statusDoc.view = view;
+    }
+    await statusDoc.save();
     io.emit("resultView", view);
   });
 });
 
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
+  // Initialisiere GlobalStatus falls nicht vorhanden
+  const status = await GlobalStatus.findOne();
+  if (!status) {
+    await new GlobalStatus({ view: "default" }).save();
+    console.log("GlobalStatus initialisiert: default");
+  }
   console.log(`Server running on port ${PORT}`);
 });

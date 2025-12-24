@@ -8,8 +8,9 @@
 }
 
 
+
 :root {
-  font-family: 'Luckiest Guy', 'Comic Sans MS', 'Arial Rounded MT Bold', Arial, Helvetica, system-ui, sans-serif !important;
+  font-family: Helvetica, Roboto, Arial, sans-serif !important;
   line-height: 1.5;
   font-weight: 400;
   color-scheme: dark;
@@ -23,7 +24,7 @@
 }
 
 html, body {
-  font-family: 'Luckiest Guy', 'Comic Sans MS', 'Arial Rounded MT Bold', Arial, Helvetica, system-ui, sans-serif !important;
+  font-family: Helvetica, Roboto, Arial, sans-serif !important;
   color: #fff9fa;
   background: #23242a;
   -webkit-font-smoothing: antialiased;

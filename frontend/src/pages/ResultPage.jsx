@@ -15,6 +15,14 @@ export default function ResultPage() {
   const [view, setView] = useState("default"); // "default" | "results"
 
   useEffect(() => {
+    // Hole initial den globalen Status (view)
+    fetch("/api/global-status")
+      .then((res) => res.ok ? res.json() : { status: "default" })
+      .then((data) => {
+        if (data && data.status) setView(data.status);
+      })
+      .catch(() => setView("default"));
+
     socket.emit("getActiveQuestion");
     socket.on("activeQuestion", setQuestion);
     socket.on("voteUpdate", setQuestion);
@@ -35,11 +43,11 @@ export default function ResultPage() {
       const size = Math.random() * 1.6 + 1.7;
       const fadeStart = Math.random() * 0.2 + 0.6;
       const id = Date.now() + Math.random();
-        setEmojis((prev) => {
-          // Verhindere doppelte Emojis beim View-Wechsel: nur hinzufügen, wenn id noch nicht existiert
-          if (prev.some((b) => b.id === id)) return prev;
-          return [...prev, { id, emoji, startX, duration, swayDuration, size, fadeStart }];
-        });
+      setEmojis((prev) => {
+        // Verhindere doppelte Emojis beim View-Wechsel: nur hinzufügen, wenn id noch nicht existiert
+        if (prev.some((b) => b.id === id)) return prev;
+        return [...prev, { id, emoji, startX, duration, swayDuration, size, fadeStart }];
+      });
     });
     socket.on("resultView", (v) => {
       setView(v);

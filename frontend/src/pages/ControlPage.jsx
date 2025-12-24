@@ -36,6 +36,15 @@ export default function ControlPage() {
     socket.emit("setResultView", view);
   };
 
+  // Hole globalen Status beim Laden
+  useEffect(() => {
+    fetch("/api/global-status")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data.view === "string") setResultView(data.view);
+      });
+  }, []);
+
   // Hole Config (Passwort, Domain) zur Laufzeit
   useEffect(() => {
     fetch("/api/config")
