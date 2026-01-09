@@ -25,6 +25,12 @@ mongoose
   })
   .then(async () => {
     console.log("MongoDB verbunden!");
+    // Initialisiere GlobalStatus falls nicht vorhanden
+    const status = await GlobalStatus.findOne();
+    if (!status) {
+      await new GlobalStatus({ view: "default" }).save();
+      console.log("GlobalStatus initialisiert: default");
+    }
     // Test-Insert: Beispiel-Frage anlegen, falls keine vorhanden
     const count = await Question.countDocuments();
     if (count === 0) {
@@ -227,12 +233,6 @@ io.on("connection", async (socket) => {
 });
 
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, async () => {
-  // Initialisiere GlobalStatus falls nicht vorhanden
-  const status = await GlobalStatus.findOne();
-  if (!status) {
-    await new GlobalStatus({ view: "default" }).save();
-    console.log("GlobalStatus initialisiert: default");
-  }
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
