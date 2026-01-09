@@ -176,8 +176,15 @@ export default function ControlPage() {
       <Typography variant="h4" gutterBottom>Kontrollseite</Typography>
       {/* Result view control */}
       <Box mb={4}>
-        <Typography variant="h6" gutterBottom>Resultseite steuern</Typography>
+        <Typography variant="h6" gutterBottom>Gesamtstatus einstellen:</Typography>
         <Stack direction="row" spacing={2}>
+                  <Button
+                    variant={resultView === "not_started" ? "contained" : "outlined"}
+                    color="info"
+                    onClick={() => setResultScreen("not_started")}
+                  >
+                    Show nicht gestartet
+                  </Button>
           <Button
             variant={resultView === "default" ? "contained" : "outlined"}
             color="primary"
@@ -197,12 +204,12 @@ export default function ControlPage() {
             color="warning"
             onClick={() => setResultScreen("singing")}
           >
-            Gesamtstatus: Singen
+            Singen
           </Button>
         </Stack>
         {resultView === "singing" && (
           <Box mt={2}>
-            <MaskedSingerLogo style={{ maxWidth: 400, margin: '0 auto' }} />
+            <MaskedSingerLogo style={{ width: '100%', margin: '0 auto' }} imgStyle={{ maxWidth: 400, width: '80vw', height: 'auto' }} />
           </Box>
         )}
       </Box>

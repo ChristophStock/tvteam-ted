@@ -39,7 +39,6 @@ html, body {
   box-sizing: inherit;
   font-family: inherit !important;
 }
-}
 
 body {
   background: linear-gradient(135deg, #23242a 0%, #2d2e36 100%) fixed;
@@ -62,20 +61,11 @@ body::before {
 
 /* Headings: always use the same font and shadow for all devices */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Luckiest Guy', 'Comic Sans MS', 'Arial Rounded MT Bold', Arial, Helvetica, system-ui, sans-serif !important;
+  font-family: Helvetica, Arial, system-ui, sans-serif !important;
   letter-spacing: 2px;
   text-shadow: 2px 2px 12px #ab218e99, 0 0 18px #fff, 0 0 32px #ffb347;
 }
 
-  border-radius: 32px !important;
-  font-family: 'Luckiest Guy', 'Comic Sans MS', 'Arial Rounded MT Bold', Arial, Helvetica, system-ui, sans-serif !important;
-  font-size: 1.3em !important;
-  background: linear-gradient(90deg, #ffb347 0%, #ffcc33 40%, #fff 100%) !important;
-  color: #6a0572 !important;
-  box-shadow: 0 2px 16px #ab218e55, 0 0 8px #fff3 !important;
-  border: 2px solid #fff1f7 !important;
-  transition: transform 0.1s, box-shadow 0.2s, background 0.2s;
-}
 button:hover, .MuiButton-root:hover {
   transform: scale(1.09) rotate(-2deg);
   box-shadow: 0 4px 32px #ffb347cc, 0 0 16px #fff;
@@ -121,14 +111,12 @@ body::before {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Luckiest Guy', 'Comic Sans MS', cursive, sans-serif;
   letter-spacing: 2px;
   text-shadow: 2px 2px 8px #ab218e99, 0 0 12px #fff;
 }
 
 button, .MuiButton-root {
   border-radius: 32px !important;
-  font-family: 'Luckiest Guy', 'Comic Sans MS', cursive, sans-serif !important;
   font-size: 1.3em !important;
   background: linear-gradient(90deg, #ffb347 0%, #ffcc33 100%) !important;
   color: #6a0572 !important;

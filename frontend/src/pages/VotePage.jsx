@@ -1,7 +1,9 @@
 // ...existing code...
+
 import React, { useEffect, useState, useRef } from "react";
 import { Typography, Button, Box } from "@mui/material";
 import { io } from "socket.io-client";
+import MaskedSingerLogo from "../MaskedSingerLogo";
 
 const socket = io({ path: "/socket.io" });
 
@@ -9,9 +11,11 @@ function VotePage() {
   const [question, setQuestion] = useState(null);
   const [voted, setVoted] = useState(false);
   const [emojis, setEmojis] = useState([]);
-  const [view, setView] = useState("default"); // "default" | "results" | "singing"
+  // "default" | "results" | "singing" | "not_started"
+  const [view, setView] = useState("default");
   const [votingActive, setVotingActive] = useState(false);
-  const emojiList = ["🎭", "🎤", "🦄", "🦋", "🦚", "🦜", "✨", "🎶"];
+  // 🎭: masks, 🎤: microphone, ✨: stars, 🎶: notes, 🍺: beer, 🍸: cocktail
+  const emojiList = ["🎭", "🎤", "✨", "🎶", "🍺", "🍸"];
   const emojiRefs = useRef([]);
 
 
@@ -73,6 +77,8 @@ function VotePage() {
 
   // Show voting options only if voting is active and question is present
   const showVotingOptions = votingActive && !!question && view === "default";
+  const showNotStarted = view === "not_started";
+  const showLogoOnly = view === "singing" || view === "results";
 
   return (
     <Box
@@ -100,7 +106,19 @@ function VotePage() {
         overflowY: 'auto',
       }}
     >
-      {showVotingOptions ? (
+      {/* Show logo at top, size depends on mode */}
+      {showLogoOnly ? (
+        <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', mt: { xs: 8, sm: 10 }, mb: { xs: 2, sm: 4 } }}>
+          <MaskedSingerLogo style={{ width: '100%' }} imgStyle={{ maxWidth: 260, width: '60vw', height: 'auto' }} />
+        </Box>
+      ) : showVotingOptions ? (
+        <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', mt: { xs: 2, sm: 3 }, mb: { xs: 1, sm: 2 } }}>
+          <MaskedSingerLogo style={{ width: '100%' }} imgStyle={{ maxWidth: 240, width: '50vw', height: 'auto' }} />
+        </Box>
+      ) : null}
+
+      {/* Voting options only in voting mode */}
+      {showVotingOptions && (
         <>
           <Typography
             variant="h2"
@@ -138,7 +156,6 @@ function VotePage() {
                   border: '2px solid #fff1f7',
                   boxShadow: '0 2px 12px #ab218e55',
                   mb: 1,
-                  fontFamily: 'Luckiest Guy, Comic Sans MS, cursive, sans-serif',
                 }}
               >
                 {opt}
@@ -151,71 +168,54 @@ function VotePage() {
             </Typography>
           )}
         </>
-      ) : (
+      )}
+
+      {/* Show info only in not_started mode */}
+      {showNotStarted && (
+        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" width="100%" height="100%" sx={{ mt: 8 }}>
+          <Typography variant="h3" sx={{ color: '#fff1f7', mb: 4, textShadow: '2px 2px 12px #ab218e', textAlign: 'center' }}>
+            Du bist auf der richtigen Seite.<br />Die Show beginnt bald.<br />Die App aktiviert sich automatisch!
+          </Typography>
+        </Box>
+      )}
+
+      {/* Emoji Buttons always visible except in not_started mode */}
+      {!showNotStarted && (
+        <Box
+          position="fixed"
+          left={0}
+          right={0}
+          bottom={32}
+          display="grid"
+          gridTemplateColumns={{ xs: 'repeat(3, 1fr)', sm: 'repeat(3, 1fr)' }}
+          gridTemplateRows={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)' }}
+          gap={2}
+          zIndex={10}
+          width="95vw"
+          maxWidth={480}
+          margin="0 auto"
+          sx={{ px: { xs: 2, sm: 0 } }}
+        >
+          {emojiList.map((emoji, idx) => (
+            <Button
+              key={idx}
+              variant="outlined"
+              sx={{ fontSize: 40, background: 'rgba(255,255,255,0.15)', minWidth: 0, width: '100%', aspectRatio: '1/1' }}
+              onClick={() => sendEmoji(emoji)}
+              className="emoji-confetti"
+            >
+              {emoji}
+            </Button>
+          ))}
+        </Box>
+      )}
+
+      {/* If not voting, not logo-only, not not_started, show fallback info */}
+      {(!showVotingOptions && !showLogoOnly && !showNotStarted) && (
         <Typography variant="h3" sx={{ color: '#fff1f7', mb: 4, textShadow: '2px 2px 12px #ab218e', textAlign: 'center' }}>
           {votingActive ? "Abstimmung läuft, aber keine Frage aktiv." : "Abstimmung ist aktuell nicht möglich"}
         </Typography>
       )}
-      {/* Emoji Buttons always in 4x2 grid at bottom */}
-      <Box
-        position="fixed"
-        left={0}
-        right={0}
-        bottom={32}
-        display="grid"
-        gridTemplateColumns={{ xs: 'repeat(4, 1fr)', sm: 'repeat(4, 1fr)' }}
-        gridTemplateRows={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)' }}
-        gap={2}
-        zIndex={10}
-        width="100vw"
-        maxWidth={480}
-        margin="0 auto"
-        sx={{ px: { xs: 2, sm: 0 } }}
-      >
-        {emojiList.map((emoji, idx) => (
-          <Button
-            key={idx}
-            variant="outlined"
-            sx={{ fontSize: 40, background: 'rgba(255,255,255,0.15)', minWidth: 0, width: '100%', aspectRatio: '1/1' }}
-            onClick={() => sendEmoji(emoji)}
-            className="emoji-confetti"
-          >
-            {emoji}
-          </Button>
-        ))}
-      </Box>
-      {/* Emoji Animations */}
-      {emojis.map((e) => (
-        <Box
-          key={e.id}
-          sx={{
-            position: "fixed",
-            [e.side]: 8,
-            bottom: 32,
-            fontSize: 48,
-            zIndex: 20,
-            animation: `flyUpVar${e.id} 2.1s cubic-bezier(.4,.01,.6,1)`,
-            '--sway': `${e.sway}px`,
-            '--sway-half': `${e.sway / 2}px`,
-            '--endHeight': `${e.endHeight}vh`,
-            filter: 'drop-shadow(0 0 16px #fff) drop-shadow(0 0 32px #ab218e)',
-            pointerEvents: 'none',
-          }}
-        >
-          {e.emoji}
-          <style>{`
-            @keyframes flyUpVar${e.id} {
-              0% { transform: translateY(0) translateX(0); opacity: 1; }
-              20% { transform: translateY(calc(-0.2 * var(--endHeight, 60vh))) translateX(var(--sway-half, 0px)); }
-              40% { transform: translateY(calc(-0.4 * var(--endHeight, 60vh))) translateX(calc(var(--sway-half, 0px) * -1)); }
-              60% { transform: translateY(calc(-0.6 * var(--endHeight, 60vh))) translateX(var(--sway, 0px)); }
-              80% { transform: translateY(calc(-0.8 * var(--endHeight, 60vh))) translateX(calc(var(--sway, 0px) * -1)); opacity: 0.9; }
-              100% { transform: translateY(calc(-1 * var(--endHeight, 60vh))) translateX(0); opacity: 0; }
-            }
-          `}</style>
-        </Box>
-      ))}
-
     </Box>
   );
 }

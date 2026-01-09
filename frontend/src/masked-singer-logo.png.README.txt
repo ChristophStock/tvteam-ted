@@ -1,0 +1,3 @@
+// Lege hier das Masked Singer PNG-Logo ab, z.B. aus /assets oder /public.
+// Beispielname: masked-singer-logo.png
+// Der Import in MaskedSingerLogo.jsx erwartet: ./masked-singer-logo.png

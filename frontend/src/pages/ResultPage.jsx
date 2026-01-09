@@ -1,9 +1,9 @@
 
-import React, { useEffect, useState, useRef } from "react";
-import { Container, Typography, Box } from "@mui/material";
-import MaskedSingerLogo from "../MaskedSingerLogo";
+import { Box, Typography } from "@mui/material";
+import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import BalloonAnimation from "../BalloonAnimation";
+import MaskedSingerLogo from "../MaskedSingerLogo";
 import "../style/balloon.css";
 
 const socket = io({ path: "/socket.io" });
@@ -12,16 +12,26 @@ export default function ResultPage() {
   const [question, setQuestion] = useState(null);
   const [emojis, setEmojis] = useState([]);
   const sceneRef = useRef();
-  const [view, setView] = useState("default"); // "default" | "results"
+  // "default" | "results" | "singing" | "not_started"
+  const [view, setView] = useState("default");
 
   useEffect(() => {
     // Hole initial den globalen Status (view)
     fetch("/api/global-status")
       .then((res) => res.ok ? res.json() : { status: "default" })
       .then((data) => {
-        if (data && data.status) setView(data.status);
+        if (data && (data.status || data.view)) setView(data.status || data.view);
       })
       .catch(() => setView("default"));
+  // Show test image if view is 'not_started'
+  if (view === "not_started") {
+    return (
+      <Box sx={{ background: '#23242a', minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, zIndex: 1 }}>
+        {/* Replace with your test image path or component */}
+        <img src="/testbild.png" alt="Testbild" style={{ maxWidth: '80vw', maxHeight: '80vh', borderRadius: 16, boxShadow: '0 0 32px #ab218e88' }} />
+      </Box>
+    );
+  }
 
     socket.emit("getActiveQuestion");
     socket.on("activeQuestion", setQuestion);
@@ -29,8 +39,7 @@ export default function ResultPage() {
     socket.on("questionClosed", setQuestion);
     // Emojis nur anzeigen, wenn showEmoji kommt (z.B. von VotePage)
     socket.on("showEmoji", (data) => {
-      const emojisArr = ["🎈", "🎈", "🎈", "🎉", "🎊", "🎈", "🎈", "🎈"];
-      const emoji = data.emoji || emojisArr[Math.floor(Math.random() * emojisArr.length)];
+      const emoji = data.emoji;
       const sceneWidth = sceneRef.current ? sceneRef.current.offsetWidth : window.innerWidth;
       let startX;
       if (Math.random() < 0.5) {
@@ -64,18 +73,36 @@ export default function ResultPage() {
     };
   }, []);
 
+  if(view === "default") { // default ist jetzt der "Abstimmung aktiv" Bildschirm
+    return (
+        <Box ref={sceneRef} className="scene" sx={{ position: "fixed", top: 0, left: 0, width: '100vw', height: '100vh', minHeight: '100vh', background: '#23242a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1, overflow: 'hidden' }}>
+          {/* Logo kleiner und mittig */}
+          <MaskedSingerLogo imgStyle={{ maxWidth: 180, width: '28vw', height: 'auto', marginBottom: 16 }} />
+          <Typography variant="h5" sx={{ color: '#ffb347', textShadow: '2px 2px 12px #ab218e', mb: 3, mt: 1, textAlign: 'center' }}>
+            Abstimmung aktiv, Jetzt auf dem Handy abstimmen!
+          </Typography>
+          {/* Balloon Animations */}
+          {emojis.map((e) => (
+            <BalloonAnimation
+              key={e.id}
+              emoji={e.emoji}
+              startX={e.startX}
+              duration={e.duration}
+              swayDuration={e.swayDuration}
+              size={e.size}
+              fadeStart={e.fadeStart}
+              onRemove={() => setEmojis((prev) => prev.filter((b) => b.id !== e.id))}
+            />
+          ))}
+        </Box>
+      );
+    }
   // Emoji-Buttons für ResultPage (zweispaltig in "singing" und "results")
-  const emojiList = ["🎭", "🎤", "🦄", "🦋", "🦚", "🦜", "✨", "🎶"];
   if (view === "singing") {
     return (
       <Box ref={sceneRef} className="scene" sx={{ background: '#23242a', minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, zIndex: 1, overflow: 'hidden' }}>
+        {/* Logo groß und mittig */}
         <MaskedSingerLogo style={{ maxWidth: 600, width: '80vw' }} />
-        {/* Emoji Buttons zweispaltig */}
-        <Box position="fixed" left={0} right={0} bottom={32} display="grid" gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)' }} gap={2} zIndex={10} width="100vw" maxWidth={320} margin="0 auto" sx={{ px: { xs: 2, sm: 0 } }}>
-          {emojiList.map((emoji, idx) => (
-            <Box key={idx} sx={{ fontSize: 40, background: 'rgba(255,255,255,0.15)', minWidth: 0, width: '100%', aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 2, border: '1px solid #fff1f7' }}>{emoji}</Box>
-          ))}
-        </Box>
         {/* Balloon Animations auch im Singen-Modus */}
         {emojis.map((e) => (
           <BalloonAnimation
@@ -101,35 +128,13 @@ export default function ResultPage() {
 
   const totalVotes = question.results.reduce((a, b) => a + b, 0);
 
-  if (view === "default") {
-    return (
-      <Box ref={sceneRef} className="scene" sx={{ position: "fixed", top: 0, left: 0, width: '100vw', height: '100vh', minHeight: '100vh', background: '#23242a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1, overflow: 'hidden' }}>
-        <Typography variant="h4" gutterBottom sx={{ color: '#fff1f7', textShadow: '2px 2px 12px #ab218e' }}>
-          Fragerunde aktiv
-        </Typography>
-        <Typography variant="body1" sx={{ color: '#fff1f7', mb: 4, opacity: 0.8 }}>
-          Die Fragerunde läuft. Ergebnisse werden später angezeigt.
-        </Typography>
-        {/* Balloon Animations */}
-        {emojis.map((e) => (
-          <BalloonAnimation
-            key={e.id}
-            emoji={e.emoji}
-            startX={e.startX}
-            duration={e.duration}
-            swayDuration={e.swayDuration}
-            size={e.size}
-            fadeStart={e.fadeStart}
-            onRemove={() => setEmojis((prev) => prev.filter((b) => b.id !== e.id))}
-          />
-        ))}
-      </Box>
-    );
-  }
-
   // Ergebnisansicht
   return (
     <Box ref={sceneRef} className="scene" sx={{ position: "fixed", top: 0, left: 0, width: '100vw', height: '100vh', minHeight: '100vh', background: '#23242a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1, overflow: 'hidden' }}>
+      {/* Logo klein oben rechts */}
+      <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 20 }}>
+        <MaskedSingerLogo style={{}} imgStyle={{ maxWidth: 100, width: '22vw', height: 'auto' }} />
+      </Box>
       <Typography variant="h4" gutterBottom sx={{ color: '#fff1f7', textShadow: '2px 2px 12px #ab218e', mt: 2 }}>
         {question?.text}
       </Typography>
@@ -169,7 +174,6 @@ export default function ResultPage() {
         })}
       </Box>
       <Typography mt={2} sx={{ color: '#ffb347', fontSize: '2em', textShadow: '0 0 12px #fff', mb: 2 }}>Gesamtstimmen: {totalVotes}</Typography>
-      {/* No emoji buttons in result view */}
       {/* Balloon Animations */}
       {emojis.map((e) => (
         <BalloonAnimation

@@ -1,18 +1,17 @@
-import React from "react";
 
-export default function MaskedSingerLogo({ style = {} }) {
-  // Replace the SVG below with a real Masked Singer logo SVG or image if available
+import React from "react";
+// Lege das PNG-Logo im gleichen Ordner ab und benenne es z.B. "masked-singer-logo.png"
+import logoPng from "./masked-singer-logo.png";
+
+export default function MaskedSingerLogo({ style = {}, imgStyle = {} }) {
+  // PNG-Logo statt SVG
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', ...style }}>
-      <svg width="320" height="120" viewBox="0 0 320 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="ms-gold" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#ffb347"/>
-            <stop offset="100%" stopColor="#ab218e"/>
-          </linearGradient>
-        </defs>
-        <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontFamily="'Luckiest Guy', 'Comic Sans MS', cursive" fontSize="48" fontWeight="bold" fill="url(#ms-gold)" stroke="#fff" strokeWidth="2" style={{filter:'drop-shadow(0 0 16px #ab218e)'}}>Masked Singer</text>
-      </svg>
+      <img
+        src={logoPng}
+        alt="Masked Singer Logo"
+        style={{ maxWidth: '100%', height: 'auto', ...imgStyle }}
+      />
     </div>
   );
 }
