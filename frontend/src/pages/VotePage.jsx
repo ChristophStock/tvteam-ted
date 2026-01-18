@@ -89,11 +89,11 @@ function VotePage() {
       display="flex"
       flexDirection="column"
       alignItems="center"
-      justifyContent={showVotingOptions ? "flex-start" : "center"}
+      justifyContent="flex-start"
       sx={{
         background: '#23242a',
         p: 0,
-        pt: showVotingOptions ? { xs: '84px', sm: '120px' } : 0,
+        pt: showVotingOptions ? { xs: '8px', sm: '20px' } : 0,
         position: 'fixed',
         top: 0,
         left: 0,
@@ -108,12 +108,12 @@ function VotePage() {
     >
       {/* Show logo at top, size depends on mode */}
       {showLogoOnly ? (
-        <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', mt: { xs: 8, sm: 10 }, mb: { xs: 2, sm: 4 } }}>
+        <Box sx={{ width: '100%', display: 'flex', mt: { xs: 8, sm: 10 }, mb: { xs: 2, sm: 4 } }}>
           <MaskedSingerLogo style={{ width: '100%' }} imgStyle={{ maxWidth: 260, width: '60vw', height: 'auto' }} />
         </Box>
       ) : showVotingOptions ? (
-        <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', mt: { xs: 2, sm: 3 }, mb: { xs: 1, sm: 2 } }}>
-          <MaskedSingerLogo style={{ width: '100%' }} imgStyle={{ maxWidth: 240, width: '50vw', height: 'auto' }} />
+        <Box sx={{ width: '100%', display: 'flex', mt: { xs: 2, sm: 3 }, mb: { xs: 1, sm: 2 } }}>
+          <MaskedSingerLogo style={{ width: '100%' }} imgStyle={{ maxWidth: 64, width: '50vw', height: 'auto' }} />
         </Box>
       ) : null}
 
@@ -172,7 +172,7 @@ function VotePage() {
 
       {/* Show info only in not_started mode */}
       {showNotStarted && (
-        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" width="100%" height="100%" sx={{ mt: 8 }}>
+        <Box display="flex" flexDirection="column" alignItems="center" width="100%" height="100%" sx={{ mt: 8 }}>
           <Typography variant="h3" sx={{ color: '#fff1f7', mb: 4, textShadow: '2px 2px 12px #ab218e', textAlign: 'center' }}>
             Du bist auf der richtigen Seite.<br />Die Show beginnt bald.<br />Die App aktiviert sich automatisch!
           </Typography>
@@ -194,7 +194,6 @@ function VotePage() {
           width="95vw"
           maxWidth={480}
           margin="0 auto"
-          sx={{ px: { xs: 2, sm: 0 } }}
         >
           {emojiList.map((emoji, idx) => (
             <Button

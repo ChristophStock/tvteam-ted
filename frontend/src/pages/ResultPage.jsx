@@ -77,7 +77,7 @@ export default function ResultPage() {
     return (
         <Box ref={sceneRef} className="scene" sx={{ position: "fixed", top: 0, left: 0, width: '100vw', height: '100vh', minHeight: '100vh', background: '#23242a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1, overflow: 'hidden' }}>
           {/* Logo kleiner und mittig */}
-          <MaskedSingerLogo imgStyle={{ maxWidth: 180, width: '28vw', height: 'auto', marginBottom: 16 }} />
+          <MaskedSingerLogo imgStyle={{ width: '28vw', height: 'auto', marginBottom: 16 }} />
           <Typography variant="h5" sx={{ color: '#ffb347', textShadow: '2px 2px 12px #ab218e', mb: 3, mt: 1, textAlign: 'center' }}>
             Abstimmung aktiv, Jetzt auf dem Handy abstimmen!
           </Typography>

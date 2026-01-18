@@ -38,7 +38,7 @@ function AppContent({ title }) {
           </Toolbar>
         </AppBar>
       )}
-      <Container maxWidth="lg" sx={{ mt: (isVotePage || isResultPage) ? 0 : 4, p: (isVotePage || isResultPage) ? 0 : 4, minWidth: (isVotePage || isResultPage) ? '100vw' : undefined, minHeight: (isVotePage || isResultPage) ? '100vh' : undefined, background: (isVotePage || isResultPage) ? 'none' : undefined, boxShadow: (isVotePage || isResultPage) ? 'none' : undefined, borderRadius: (isVotePage || isResultPage) ? 0 : undefined }}>
+      <Container maxWidth="lg" disableGutters sx={{ mt: (isVotePage || isResultPage) ? 0 : 4, p: (isVotePage || isResultPage) ? 0 : 4, background: (isVotePage || isResultPage) ? 'none' : undefined, boxShadow: (isVotePage || isResultPage) ? 'none' : undefined, borderRadius: (isVotePage || isResultPage) ? 0 : undefined, overflow: (isVotePage || isResultPage) ? 'hidden' : undefined }}>
         <Routes>
           <Route path="/control" element={<ControlPage />} />
           <Route path="/vote" element={<VotePage />} />

@@ -1,0 +1,5 @@
+* scrooller auf result - check
+* logo bei vote nach oben - check
+* höhe vote bei kleinem bildschirm
+* logo auf allen screens größer im result - check
+* mongo db bricht ab wenn festplatte voll, lösung überdenken

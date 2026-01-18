@@ -1,0 +1,10 @@
+.logo-pulse {
+  animation: logo-pulse 5.0s infinite cubic-bezier(.4,0,.6,1);
+}
+@keyframes logo-pulse {
+  0% { filter: brightness(1) drop-shadow(0 0 24px #fff8); transform: scale(1); }
+  40% { filter: brightness(1.35) drop-shadow(0 0 48px #fff); transform: scale(1.12); }
+  60% { filter: brightness(1.5) drop-shadow(0 0 64px #fff); transform: scale(1.18); }
+  100% { filter: brightness(1) drop-shadow(0 0 24px #fff8); transform: scale(1); }
+}
+
