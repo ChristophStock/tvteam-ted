@@ -9,11 +9,14 @@ import "../style/balloon.css";
 const socket = io({ path: "/socket.io" });
 
 export default function ResultPage() {
+  // Alle Hooks müssen vor jeglichem return stehen!
   const [question, setQuestion] = useState(null);
   const [emojis, setEmojis] = useState([]);
   const sceneRef = useRef();
-  // "default" | "results" | "singing" | "not_started"
   const [view, setView] = useState("default");
+  const [animatedPercents, setAnimatedPercents] = useState([]);
+  // totalVotes und Animation müssen immer initialisiert werden, auch wenn question null ist
+  const totalVotes = question?.results?.reduce((a, b) => a + b, 0) || 0;
 
   useEffect(() => {
     // Hole initial den globalen Status (view)
@@ -23,15 +26,6 @@ export default function ResultPage() {
         if (data && (data.status || data.view)) setView(data.status || data.view);
       })
       .catch(() => setView("default"));
-  // Show test image if view is 'not_started'
-  if (view === "not_started") {
-    return (
-      <Box sx={{ background: '#23242a', minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, zIndex: 1 }}>
-        {/* Replace with your test image path or component */}
-        <img src="/testbild.png" alt="Testbild" style={{ maxWidth: '80vw', maxHeight: '80vh', borderRadius: 16, boxShadow: '0 0 32px #ab218e88' }} />
-      </Box>
-    );
-  }
 
     socket.emit("getActiveQuestion");
     socket.on("activeQuestion", setQuestion);
@@ -72,6 +66,39 @@ export default function ResultPage() {
       socket.off("resultView");
     };
   }, []);
+
+  useEffect(() => {
+    if (!question?.results) return;
+    const percents = question.options.map((opt, idx) => {
+      const votes = question.results[idx];
+      return totalVotes ? Math.round((votes / totalVotes) * 100) : 0;
+    });
+    // Start bei 50% der Ziel-BALKENBREITE (nicht Prozentwert)
+    setAnimatedPercents(percents.map(p => Math.max(0, Math.round(p * 0.5))));
+    // Animate to final in 10s
+    const start = Date.now();
+    const duration = 5000;
+    function animate() {
+      const now = Date.now();
+      const t = Math.min(1, (now - start) / duration);
+      setAnimatedPercents(percents.map((target) => {
+        const from = Math.max(0, Math.round(target * 0.5));
+        return Math.round(from + (target - from) * t);
+      }));
+      if (t < 1) requestAnimationFrame(animate);
+    }
+    animate();
+    // eslint-disable-next-line
+  }, [question?.results?.join(",")]);
+
+  if (view === "not_started") {
+    return (
+      <Box sx={{ background: '#23242a', minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, zIndex: 1 }}>
+        {/* Replace with your test image path or component */}
+        <img src="/testbild.png" alt="Testbild" style={{ maxWidth: '80vw', maxHeight: '80vh', borderRadius: 16, boxShadow: '0 0 32px #ab218e88' }} />
+      </Box>
+    );
+  }
 
   if(view === "default") { // default ist jetzt der "Abstimmung aktiv" Bildschirm
     return (
@@ -119,6 +146,7 @@ export default function ResultPage() {
       </Box>
     );
   }
+
   if (!question)
     return (
       <Box sx={{ background: '#23242a', minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, zIndex: 1 }}>
@@ -126,55 +154,135 @@ export default function ResultPage() {
       </Box>
     );
 
-  const totalVotes = question.results.reduce((a, b) => a + b, 0);
-
   // Ergebnisansicht
   return (
-    <Box ref={sceneRef} className="scene" sx={{ position: "fixed", top: 0, left: 0, width: '100vw', height: '100vh', minHeight: '100vh', background: '#23242a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1, overflow: 'hidden' }}>
-      {/* Logo klein oben rechts */}
-      <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 20 }}>
-        <MaskedSingerLogo style={{}} imgStyle={{ maxWidth: 100, width: '22vw', height: 'auto' }} />
-      </Box>
-      <Typography variant="h4" gutterBottom sx={{ color: '#fff1f7', textShadow: '2px 2px 12px #ab218e', mt: 2 }}>
-        {question?.text}
+    <Box
+      ref={sceneRef}
+      className="scene"
+      sx={{
+        background: '#23242a',
+        minHeight: '100vh',
+        width: '100vw',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        zIndex: 1,
+        overflow: 'auto',
+        pb: 6,
+      }}
+    >
+      {/* Question text */}
+      <Typography variant="h2" sx={{ color: '#ffb347', textShadow: '2px 2px 12px #ab218e', mb: 4, textAlign: 'center', maxWidth: 800 }}>
+        {question.text}
       </Typography>
-      <Box mt={4} sx={{ width: '80vw', maxWidth: 1200 }}>
-        {question?.options?.map((opt, idx) => {
-          const votes = question.results[idx];
-          const percent = totalVotes
-            ? Math.round((votes / totalVotes) * 100)
-            : 0;
-          return (
-            <Box key={idx} mb={4}>
-              <Typography sx={{ color: '#fff1f7', fontSize: '2.2em', mb: 1, textShadow: '1px 1px 12px #ab218e' }}>
-                {opt}: {votes} Stimmen ({percent}%)
-              </Typography>
+      {/* Flex row: logo left, bars right */}
+      <Box sx={{ width: '90%', maxWidth: 1000, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', height: { xs: 'auto', sm: '75vh' } }}>
+        {/* Logo on the left - now larger and with more spacing */}
+        <Box sx={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', pr: { xs: 4, sm: 8 } }}>
+          <MaskedSingerLogo imgStyle={{ width: '36vw', maxWidth: 320, minWidth: 120, height: 'auto' }} />
+        </Box>
+        {/* Bars on the right */}
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%' }}>
+          {question?.options?.map((opt, idx) => {
+            const percent = animatedPercents[idx] || 0;
+            const minBarWidth = 0.35;
+            const maxBarWidth = 0.9;
+            const barWidth = `calc(${minBarWidth * 100}% + ${(maxBarWidth - minBarWidth) * percent}%)`;
+            const barHeight = { xs: '60px', sm: `calc(15vh)` };
+            return (
               <Box
+                key={idx}
+                mb={{ xs: 2, sm: 4 }}
                 sx={{
-                  height: { xs: 54, sm: 80 },
-                  width: `${percent}%`,
-                  minWidth: 24,
-                  background: 'linear-gradient(90deg, #ffb347 0%, #ab218e 100%)',
-                  borderRadius: 16,
-                  boxShadow: '0 4px 32px #ab218e88',
-                  transition: 'width 0.7s cubic-bezier(.4,.01,.6,1)',
+                  width: '100%',
+                  position: 'relative',
+                  minHeight: barHeight,
+                  height: barHeight,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  position: 'relative',
-                  overflow: 'hidden',
+                  justifyContent: 'flex-start',
                 }}
               >
-                <Typography sx={{ color: '#fff', fontWeight: 700, pr: 4, fontSize: { xs: '1.5em', sm: '2em' }, textShadow: '0 0 12px #ab218e' }}>
-                  {percent}%
-                </Typography>
+                {/* Farbiger Balken als Hintergrund, Breite nach Prozent, aber immer minBarWidth */}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    height: '100%',
+                    width: barWidth,
+                    minWidth: `${minBarWidth * 100}%`,
+                    maxWidth: `${maxBarWidth * 100}%`,
+                    background: 'linear-gradient(90deg, #ffb347 0%, #ab218e 100%)',
+                    borderRadius: 18,
+                    boxShadow: '0 4px 32px #ab218e88',
+                    transition: 'width 0.2s linear',
+                    zIndex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                />
+                {/* Inhalt immer sichtbar, über dem Balken */}
+                <Box
+                  sx={{
+                    position: 'relative',
+                    zIndex: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    height: '100%',
+                    minWidth: 120,
+                    maxWidth: `${maxBarWidth * 100}%`,
+                    pl: 2,
+                    pr: 2,
+                    width: '100%',
+                  }}
+                >
+                  {opt.imageUrl && (
+                    <img
+                      src={opt.imageUrl}
+                      alt={opt.text}
+                      style={{ width: 56, height: 56, objectFit: 'contain', marginRight: 18, borderRadius: 10, background: '#fff', boxShadow: '0 2px 8px #ab218e44' }}
+                    />
+                  )}
+                  <Typography
+                    sx={{
+                      color: '#fff1f7',
+                      fontSize: { xs: '1.3em', sm: '2.2em' },
+                      textShadow: '1px 1px 12px #ab218e',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      flex: 1,
+                    }}
+                  >
+                    {opt.text}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: { xs: '1.2em', sm: '2em' },
+                      textShadow: '0 0 12px #ab218e',
+                      ml: 2,
+                      minWidth: 60,
+                      textAlign: 'right',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {percent}%
+                  </Typography>
+                </Box>
               </Box>
-            </Box>
-          );
-        })}
+            );
+          })}
+        </Box>
       </Box>
-      <Typography mt={2} sx={{ color: '#ffb347', fontSize: '2em', textShadow: '0 0 12px #fff', mb: 2 }}>Gesamtstimmen: {totalVotes}</Typography>
-      {/* Balloon Animations */}
+      {/* Balloon Animations (optional, if you want to keep them in result view) */}
       {emojis.map((e) => (
         <BalloonAnimation
           key={e.id}

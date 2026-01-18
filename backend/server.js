@@ -5,6 +5,10 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const { Server } = require("socket.io");
 
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -15,7 +19,30 @@ const io = new Server(server, {
 });
 
 app.use(cors());
-app.use(express.json());
+// Increase body size limits for JSON and urlencoded (e.g. for base64 images or large payloads)
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// Ensure uploads directory exists before using Multer
+const uploadsDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+
+// Multer-Setup für Bild-Uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    // Dateiname: timestampZufall.<ext>
+    const ext = path.extname(file.originalname);
+    const unique = Date.now() + "_" + Math.round(Math.random() * 1e9);
+    cb(null, `${unique}${ext}`);
+  },
+});
+const upload = multer({ storage });
 
 // MongoDB Verbindung
 mongoose
@@ -50,9 +77,14 @@ mongoose
   });
 
 // Models
+const OptionSchema = new mongoose.Schema({
+  text: String,
+  imageUrl: String, // optionales Bild pro Option
+});
+
 const QuestionSchema = new mongoose.Schema({
   text: String,
-  options: [String],
+  options: [OptionSchema],
   active: Boolean,
   closed: Boolean,
   results: [Number],
@@ -117,6 +149,7 @@ app.post("/api/questions/:id/reset", async (req, res) => {
   }
 });
 
+// Frage anlegen (options: [{text, imageUrl}])
 app.post("/api/questions", async (req, res) => {
   try {
     const { text, options } = req.body;
@@ -136,6 +169,51 @@ app.post("/api/questions", async (req, res) => {
   }
 });
 
+// Bild-Upload für eine Option
+app.post(
+  "/api/upload-option-image",
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { questionId, optionIndex } = req.body;
+      const file = req.file;
+      if (!file)
+        return res.status(400).json({ error: "Kein Bild hochgeladen" });
+
+      // Bild-URL erzeugen
+      const imageUrl = `/uploads/${file.filename}`;
+
+      // Frage und Option aktualisieren
+      const question = await Question.findById(questionId);
+      if (!question)
+        return res.status(404).json({ error: "Frage nicht gefunden" });
+      const idx = parseInt(optionIndex, 10);
+      if (!question.options[idx])
+        return res.status(400).json({ error: "Option nicht gefunden" });
+
+      // Altes Bild ggf. löschen
+      const oldUrl = question.options[idx].imageUrl;
+      if (oldUrl) {
+        const oldPath = path.join(
+          __dirname,
+          oldUrl.replace("/uploads", "uploads"),
+        );
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+
+      // Bildpfad speichern
+      question.options[idx].imageUrl = imageUrl;
+      await question.save();
+      res.json({ success: true, imageUrl });
+    } catch (err) {
+      console.error("[UPLOAD OPTION IMAGE]", err);
+      res.status(500).json({ error: "Fehler beim Hochladen des Bildes" });
+    }
+  },
+);
+
 app.post("/api/questions/:id/activate", async (req, res) => {
   await Question.updateMany({}, { active: false });
   const question = await Question.findByIdAndUpdate(req.params.id, {
@@ -145,7 +223,7 @@ app.post("/api/questions/:id/activate", async (req, res) => {
   console.log(
     `[STATUS] Frage aktiviert: id=${req.params.id}, text='${
       question?.text || "?"
-    }'`
+    }'`,
   );
   io.emit("questionActivated", question);
   res.json(question);
@@ -159,7 +237,7 @@ app.post("/api/questions/:id/close", async (req, res) => {
   console.log(
     `[STATUS] Frage geschlossen: id=${req.params.id}, text='${
       question?.text || "?"
-    }'`
+    }'`,
   );
   io.emit("questionClosed", question);
   res.json(question);
@@ -175,7 +253,7 @@ app.post("/api/questions/:id/vote", async (req, res) => {
   }
   if (!question.active || question.closed) {
     console.warn(
-      `[VOTE] Vote blocked: not active or closed. id=${req.params.id}`
+      `[VOTE] Vote blocked: not active or closed. id=${req.params.id}`,
     );
     return res.status(400).json({ error: "Voting not allowed: not active" });
   }

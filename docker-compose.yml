@@ -16,6 +16,8 @@ services:
       - VITE_CONTROL_PASSWORD=meinPasswort
       - VITE_ALLOWED_HOSTS=localhost,example.com
       - VITE_VOTING_TITLE=Masked Singer Voting
+    volumes:
+      - ./backend/uploads:/app/uploads
     depends_on:
       - mongo
   frontend:

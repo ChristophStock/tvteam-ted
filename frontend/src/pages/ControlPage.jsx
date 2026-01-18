@@ -1,5 +1,13 @@
+
 import React, { useEffect, useState } from "react";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import IconButton from "@mui/material/IconButton";
+import EditIcon from "@mui/icons-material/Edit";
 import MaskedSingerLogo from "../MaskedSingerLogo";
+import OptionImageUpload from "../OptionImageUpload";
 import {
   Container,
   Typography,
@@ -22,12 +30,97 @@ export default function ControlPage() {
   const [liveResults, setLiveResults] = useState(null);
   const [newText, setNewText] = useState("");
   const [optionInput, setOptionInput] = useState("");
-  const [newOptions, setNewOptions] = useState([]);
+  const [optionImages, setOptionImages] = useState([]); // Array of File or null
+  const [newOptions, setNewOptions] = useState([]); // Array of { text, imageUrl }
   const [loading, setLoading] = useState(false);
   const [resultView, setResultView] = useState("default"); // "default" | "results" | "singing"
   const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [config, setConfig] = useState({ controlPassword: "", allowedHosts: "" });
+
+  // Edit dialog state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editText, setEditText] = useState("");
+  const [editOptions, setEditOptions] = useState([]); // Array of { text, imageUrl }
+  const [editOptionImages, setEditOptionImages] = useState([]); // Array of File or null
+  const [editQuestionId, setEditQuestionId] = useState(null);
+
+  // Open edit dialog for a question
+  const openEdit = (q) => {
+    setEditQuestionId(q._id);
+    setEditText(q.text);
+    setEditOptions(q.options.map(opt => ({ ...opt })));
+    setEditOptionImages(q.options.map(() => null));
+    setEditOpen(true);
+  };
+
+  // Cancel edit
+  const cancelEdit = () => {
+    setEditOpen(false);
+    setEditText("");
+    setEditOptions([]);
+    setEditOptionImages([]);
+    setEditQuestionId(null);
+  };
+
+  // Handle edit text change
+  const handleEditTextChange = (e) => {
+    setEditText(e.target.value);
+  };
+
+  // Handle edit option text change
+  const handleEditOptionTextChange = (idx, value) => {
+    setEditOptions((opts) => {
+      const updated = [...opts];
+      updated[idx] = { ...updated[idx], text: value };
+      return updated;
+    });
+  };
+
+  // Handle edit option image change
+  const handleEditOptionImageChange = (idx, file) => {
+    const newImgs = [...editOptionImages];
+    newImgs[idx] = file;
+    setEditOptionImages(newImgs);
+    // Show preview immediately
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setEditOptions((opts) => {
+        const updated = [...opts];
+        updated[idx] = { ...updated[idx], imageUrl: e.target.result };
+        return updated;
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Save edit
+  const saveEdit = async () => {
+    // 1. Update question text and options (without images)
+    await fetch(`/api/questions/${editQuestionId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: editText,
+        options: editOptions.map(opt => ({ text: opt.text, imageUrl: opt.imageUrl || null }))
+      }),
+    });
+    // 2. Upload images for each option if present
+    await Promise.all(editOptionImages.map(async (file, idx) => {
+      if (file) {
+        const formData = new FormData();
+        formData.append("image", file);
+        formData.append("questionId", editQuestionId);
+        formData.append("optionIndex", idx);
+        await fetch("/api/upload-option-image", {
+          method: "POST",
+          body: formData,
+        });
+      }
+    }));
+    cancelEdit();
+    fetchQuestions();
+  };
 
 
   // Result view control
@@ -126,26 +219,69 @@ export default function ControlPage() {
 
   const addOption = () => {
     if (optionInput.trim()) {
-      setNewOptions([...newOptions, optionInput.trim()]);
+      setNewOptions([...newOptions, { text: optionInput.trim(), imageUrl: null }]);
+      setOptionImages([...optionImages, null]);
       setOptionInput("");
     }
   };
 
   const removeOption = (idx) => {
     setNewOptions(newOptions.filter((_, i) => i !== idx));
+    setOptionImages(optionImages.filter((_, i) => i !== idx));
+  };
+
+  // Handle image file selection for an option
+  const handleOptionImageChange = (idx, file) => {
+    const newImgs = [...optionImages];
+    newImgs[idx] = file;
+    setOptionImages(newImgs);
+    // Show preview immediately
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setNewOptions((opts) => {
+        const updated = [...opts];
+        updated[idx] = { ...updated[idx], imageUrl: e.target.result };
+        return updated;
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   const createQuestion = async (e) => {
     e.preventDefault();
     if (!newText.trim() || newOptions.length < 2) return;
     setLoading(true);
-    await fetch("/api/questions", {
+    // 1. Create question with text and options (without images)
+    const res = await fetch("/api/questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: newText, options: newOptions }),
+      body: JSON.stringify({
+        text: newText,
+        options: newOptions.map(opt => ({ text: opt.text, imageUrl: null }))
+      }),
     });
+    const question = await res.json();
+    // 2. Upload images for each option if present
+    if (question && question._id) {
+      await Promise.all(optionImages.map(async (file, idx) => {
+        if (file) {
+          const formData = new FormData();
+          formData.append("image", file);
+          formData.append("questionId", question._id);
+          formData.append("optionIndex", idx);
+          const uploadRes = await fetch("/api/upload-option-image", {
+            method: "POST",
+            body: formData,
+          });
+          if (uploadRes.ok) {
+            // Optionally update UI with new imageUrl
+          }
+        }
+      }));
+    }
     setNewText("");
     setNewOptions([]);
+    setOptionImages([]);
     setLoading(false);
     fetchQuestions();
   };
@@ -239,9 +375,16 @@ export default function ControlPage() {
             Hinzufügen
           </Button>
         </Stack>
-        <Stack direction="row" spacing={1} mb={2}>
+        <Stack direction="column" spacing={1} mb={2}>
           {newOptions.map((opt, idx) => (
-            <Chip key={opt + idx} label={opt} onDelete={() => removeOption(idx)} />
+            <Box key={idx} display="flex" alignItems="center" gap={2}>
+              <Chip label={opt.text} onDelete={() => removeOption(idx)} />
+              <OptionImageUpload
+                optionIdx={idx}
+                imageUrl={opt.imageUrl}
+                onImageChange={handleOptionImageChange}
+              />
+            </Box>
           ))}
         </Stack>
         <Button
@@ -269,17 +412,75 @@ export default function ControlPage() {
               alignItems: 'flex-start',
             }}
           >
-            <ListItemText
-              primary={q.text}
-              secondary={q.options.join(", ")}
-            />
+            <Box display="flex" alignItems="center" width="100%">
+              <ListItemText
+                primary={q.text}
+                secondary={
+                  <Box display="flex" flexWrap="wrap" gap={2}>
+                    {q.options.map((opt, idx) => (
+                      <Box key={idx} display="flex" alignItems="center" gap={1}>
+                        <span>{opt.text}</span>
+                        {opt.imageUrl && (
+                          <img src={opt.imageUrl} alt="Option" style={{ maxHeight: 32, maxWidth: 48, borderRadius: 4 }} />
+                        )}
+                      </Box>
+                    ))}
+                  </Box>
+                }
+              />
+              <IconButton aria-label="Bearbeiten" onClick={() => openEdit(q)} size="small">
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Box>
+                  {/* Edit Question Dialog */}
+                  <Dialog open={editOpen} onClose={cancelEdit} maxWidth="sm" fullWidth>
+                    <DialogTitle>Frage bearbeiten</DialogTitle>
+                    <DialogContent>
+                      <TextField
+                        label="Fragetext"
+                        value={editText}
+                        onChange={handleEditTextChange}
+                        fullWidth
+                        margin="normal"
+                      />
+                      <Stack direction="column" spacing={2} mt={2}>
+                        {editOptions.map((opt, idx) => (
+                          <Box key={idx} display="flex" alignItems="center" gap={2}>
+                            <TextField
+                              label={`Antwortoption ${idx + 1}`}
+                              value={opt.text}
+                              onChange={e => handleEditOptionTextChange(idx, e.target.value)}
+                              size="small"
+                            />
+                            <OptionImageUpload
+                              optionIdx={idx}
+                              imageUrl={opt.imageUrl}
+                              onImageChange={handleEditOptionImageChange}
+                            />
+                          </Box>
+                        ))}
+                      </Stack>
+                    </DialogContent>
+                    <DialogActions>
+                      <Button onClick={cancelEdit}>Abbrechen</Button>
+                      <Button onClick={saveEdit} variant="contained" color="primary">Speichern</Button>
+                    </DialogActions>
+                  </Dialog>
             {/* Ergebnisse je Option anzeigen */}
             {Array.isArray(q.results) && q.results.length === q.options.length && (
               <Box display="flex" flexWrap="wrap" gap={1} mb={1} mt={0.5}>
                 {q.options.map((opt, idx) => (
                   <Chip
-                    key={opt + idx}
-                    label={`${opt}: ${q.results[idx] ?? 0}`}
+                    key={opt.text + idx}
+                    label={
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <span>{opt.text}</span>
+                        {opt.imageUrl && (
+                          <img src={opt.imageUrl} alt="Option" style={{ maxHeight: 20, maxWidth: 32, borderRadius: 3 }} />
+                        )}
+                        <span>: {q.results[idx] ?? 0}</span>
+                      </Box>
+                    }
                     color="default"
                     size="small"
                     sx={{ background: '#fff1f7', color: '#6a0572', fontWeight: 700, fontFamily: 'Luckiest Guy, Comic Sans MS, cursive, sans-serif' }}
@@ -334,8 +535,13 @@ export default function ControlPage() {
             Live-Ergebnis: {liveResults.text}
           </Typography>
           {liveResults.options.map((opt, idx) => (
-            <Box key={opt + idx} display="flex" alignItems="center" mb={1}>
-              <Box minWidth={120}>{opt}</Box>
+            <Box key={opt._id || idx} display="flex" alignItems="center" mb={1}>
+              <Box minWidth={120} display="flex" alignItems="center" gap={1}>
+                <span>{opt.text}</span>
+                {opt.imageUrl && (
+                  <img src={opt.imageUrl} alt="Option" style={{ maxHeight: 24, maxWidth: 36, borderRadius: 3 }} />
+                )}
+              </Box>
               <Box
                 flex={1}
                 bgcolor="#444"
@@ -348,7 +554,7 @@ export default function ControlPage() {
                   bgcolor="#ffb300"
                   height={24}
                   borderRadius={1}
-                  width={`${
+                  width={`$
                     liveResults.results?.[idx]
                       ? (liveResults.results[idx] /
                           Math.max(1, Math.max(...(liveResults.results ?? [1])))) *

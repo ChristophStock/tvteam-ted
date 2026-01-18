@@ -156,9 +156,21 @@ function VotePage() {
                   border: '2px solid #fff1f7',
                   boxShadow: '0 2px 12px #ab218e55',
                   mb: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  gap: 2,
                 }}
               >
-                {opt}
+                {/* Show image if present */}
+                {opt.imageUrl && (
+                  <img
+                    src={opt.imageUrl}
+                    alt="Option"
+                    style={{ maxHeight: 36, maxWidth: 54, borderRadius: 4, marginRight: 12 }}
+                  />
+                )}
+                <span>{opt.text ?? opt}</span>
               </Button>
             ))}
           </Box>
@@ -185,11 +197,11 @@ function VotePage() {
           position="fixed"
           left={0}
           right={0}
-          bottom={32}
+          bottom={24}
           display="grid"
           gridTemplateColumns={{ xs: 'repeat(3, 1fr)', sm: 'repeat(3, 1fr)' }}
           gridTemplateRows={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)' }}
-          gap={2}
+          gap={{ xs: 2.5, sm: 3 }}
           zIndex={10}
           width="95vw"
           maxWidth={480}
@@ -199,7 +211,20 @@ function VotePage() {
             <Button
               key={idx}
               variant="outlined"
-              sx={{ fontSize: 40, background: 'rgba(255,255,255,0.15)', minWidth: 0, width: '100%', aspectRatio: '1/1' }}
+              sx={{
+                fontSize: { xs: 30, sm: 32 }, // 3/4 of 40
+                background: 'rgba(255,255,255,0.15)',
+                minWidth: 0,
+                width: '100%',
+                aspectRatio: '1/1',
+                height: { xs: 48, sm: 56 }, // smaller height
+                maxWidth: { xs: 56, sm: 64 },
+                mx: 'auto',
+                borderRadius: 3,
+                boxShadow: '0 1px 6px #ab218e33',
+                p: 0,
+                mb: 0,
+              }}
               onClick={() => sendEmoji(emoji)}
               className="emoji-confetti"
             >
