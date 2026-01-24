@@ -1,10 +1,17 @@
 
 import { Box, Typography } from "@mui/material";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import BalloonAnimation from "../BalloonAnimation";
 import MaskedSingerLogo from "../MaskedSingerLogo";
+import { RESULT_VIDEOS } from "../videoManifest";
 import "../style/balloon.css";
+
+const buildInitialVideoCacheState = () =>
+  RESULT_VIDEOS.reduce((acc, video) => {
+    acc[video.id] = { status: "idle", progress: 0, url: null, error: null, size: 0 };
+    return acc;
+  }, {});
 
 const socket = io({ path: "/socket.io" });
 
@@ -13,10 +20,45 @@ export default function ResultPage() {
   const [question, setQuestion] = useState(null);
   const [emojis, setEmojis] = useState([]);
   const sceneRef = useRef();
+  const videoRef = useRef(null);
   const [view, setView] = useState("default");
   const [animatedPercents, setAnimatedPercents] = useState([]);
+  const [videoCache, setVideoCache] = useState(() => buildInitialVideoCacheState());
+  const [videoQueueDone, setVideoQueueDone] = useState(RESULT_VIDEOS.length === 0);
+  const [cacheAttempt, setCacheAttempt] = useState(0);
   // totalVotes und Animation müssen immer initialisiert werden, auch wenn question null ist
   const totalVotes = question?.results?.reduce((a, b) => a + b, 0) || 0;
+  const readyCount = useMemo(
+    () => RESULT_VIDEOS.filter((video) => videoCache[video.id]?.status === "ready").length,
+    [videoCache],
+  );
+  const allVideosReady =
+    RESULT_VIDEOS.length === 0 || readyCount === RESULT_VIDEOS.length;
+  const activeVideoConfig = useMemo(
+    () => RESULT_VIDEOS.find((video) => video.id === view),
+    [view],
+  );
+  const activeVideoState = activeVideoConfig ? videoCache[activeVideoConfig.id] : null;
+  const cacheDetails = useMemo(
+    () =>
+      RESULT_VIDEOS.map((video) => ({
+        id: video.id,
+        label: video.label,
+        status: videoCache[video.id]?.status || "idle",
+        progress: videoCache[video.id]?.progress || 0,
+        error: videoCache[video.id]?.error || null,
+      })),
+    [videoCache],
+  );
+  const hasVideoError = useMemo(
+    () => RESULT_VIDEOS.some((video) => videoCache[video.id]?.status === "error"),
+    [videoCache],
+  );
+  const restartVideoCaching = () => {
+    setVideoCache(buildInitialVideoCacheState());
+    setVideoQueueDone(RESULT_VIDEOS.length === 0);
+    setCacheAttempt((prev) => prev + 1);
+  };
 
   useEffect(() => {
     // Hole initial den globalen Status (view)
@@ -29,6 +71,7 @@ export default function ResultPage() {
 
     socket.emit("getActiveQuestion");
     socket.on("activeQuestion", setQuestion);
+    socket.on("questionActivated", setQuestion);
     socket.on("voteUpdate", setQuestion);
     socket.on("questionClosed", setQuestion);
     // Emojis nur anzeigen, wenn showEmoji kommt (z.B. von VotePage)
@@ -60,12 +103,124 @@ export default function ResultPage() {
     // Keine Rücksetzung der Emojis bei View-Wechsel!
     return () => {
       socket.off("activeQuestion");
+      socket.off("questionActivated");
       socket.off("voteUpdate");
       socket.off("questionClosed");
       socket.off("showEmoji");
       socket.off("resultView");
     };
   }, []);
+
+  useEffect(() => {
+    if (!RESULT_VIDEOS.length) return;
+    let cancelled = false;
+    const abortControllers = [];
+    const objectUrls = [];
+    const updateCache = (id, patch) => {
+      setVideoCache((prev) => ({
+        ...prev,
+        [id]: {
+          ...(prev[id] || { status: "idle", progress: 0, url: null, error: null, size: 0 }),
+          ...patch,
+        },
+      }));
+    };
+    const preloadVideo = async (video) => {
+      updateCache(video.id, { status: "loading", progress: 0, error: null, url: null });
+      try {
+        const controller = new AbortController();
+        abortControllers.push(controller);
+        const response = await fetch(video.src, {
+          signal: controller.signal,
+          cache: "force-cache",
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const contentLengthHeader = response.headers.get("content-length");
+        const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0;
+        const reader = response.body?.getReader();
+        let received = 0;
+        const chunks = [];
+        if (reader) {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (value) {
+              chunks.push(value);
+              received += value.length;
+              if (!cancelled && contentLength) {
+                updateCache(video.id, { progress: Math.min(1, received / contentLength) });
+              }
+            }
+          }
+        }
+        let blob;
+        if (chunks.length) {
+          blob = new Blob(chunks, {
+            type: response.headers.get("content-type") || "video/mp4",
+          });
+        } else {
+          blob = await response.blob();
+        }
+        const objectUrl = URL.createObjectURL(blob);
+        objectUrls.push(objectUrl);
+        if (!cancelled) {
+          updateCache(video.id, {
+            status: "ready",
+            progress: 1,
+            url: objectUrl,
+            error: null,
+            size: blob.size,
+          });
+        } else {
+          URL.revokeObjectURL(objectUrl);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          updateCache(video.id, {
+            status: "error",
+            progress: 0,
+            url: null,
+            error: err?.message || "Download fehlgeschlagen",
+          });
+        }
+      }
+    };
+    setVideoQueueDone(false);
+    (async () => {
+      for (const video of RESULT_VIDEOS) {
+        if (cancelled) break;
+        await preloadVideo(video);
+      }
+      if (!cancelled) setVideoQueueDone(true);
+    })();
+    return () => {
+      cancelled = true;
+      abortControllers.forEach((controller) => controller.abort());
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [cacheAttempt]);
+
+  useEffect(() => {
+    if (!RESULT_VIDEOS.length) return;
+    socket.emit("resultVideoCacheStatus", {
+      readyCount,
+      total: RESULT_VIDEOS.length,
+      allReady: allVideosReady,
+      queueFinished: videoQueueDone,
+      timestamp: Date.now(),
+      details: cacheDetails,
+    });
+  }, [readyCount, allVideosReady, videoQueueDone, cacheDetails]);
+
+  useEffect(() => {
+    if (!hasVideoError) return;
+    const retryTimer = setTimeout(() => {
+      restartVideoCaching();
+    }, 5000);
+    return () => clearTimeout(retryTimer);
+  }, [hasVideoError]);
 
   useEffect(() => {
     if (!question?.results) return;
@@ -90,6 +245,30 @@ export default function ResultPage() {
     animate();
     // eslint-disable-next-line
   }, [question?.results?.join(",")]);
+
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!activeVideoConfig || !element) return;
+    if (activeVideoState?.status !== "ready" || !activeVideoState.url) {
+      element.pause?.();
+      return;
+    }
+    element.currentTime = 0;
+    const play = async () => {
+      try {
+        element.muted = false;
+        await element.play();
+      } catch (err) {
+        try {
+          element.muted = true;
+          await element.play();
+        } catch (playErr) {
+          console.warn("Autoplay verhindert", playErr);
+        }
+      }
+    };
+    play();
+  }, [activeVideoConfig, activeVideoState]);
 
   if (view === "not_started") {
     return (
@@ -143,6 +322,57 @@ export default function ResultPage() {
             onRemove={() => setEmojis((prev) => prev.filter((b) => b.id !== e.id))}
           />
         ))}
+      </Box>
+    );
+  }
+
+  if (activeVideoConfig) {
+    const status = activeVideoState?.status || "idle";
+    const videoReady = status === "ready" && activeVideoState?.url;
+    return (
+      <Box
+        ref={sceneRef}
+        className="scene"
+        sx={{
+          background: '#04060a',
+          minHeight: '100vh',
+          width: '100vw',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          zIndex: 1,
+          overflow: 'hidden',
+        }}
+      >
+        {videoReady ? (
+          <video
+            key={`${activeVideoConfig.id}-${cacheAttempt}`}
+            ref={videoRef}
+            src={activeVideoState.url}
+            playsInline
+            autoPlay
+            controls={false}
+            muted={false}
+            loop
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <Box
+            sx={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'radial-gradient(circle at center, #1c1f2b 0%, #04060a 70%)',
+            }}
+          >
+            <MaskedSingerLogo imgStyle={{ width: '30vw', minWidth: 180, maxWidth: 480, filter: 'drop-shadow(0 0 24px #ab218e)' }} />
+          </Box>
+        )}
       </Box>
     );
   }

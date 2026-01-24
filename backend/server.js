@@ -17,6 +17,7 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
+let latestVideoCacheStatus = null;
 
 app.use(cors());
 // Increase body size limits for JSON and urlencoded (e.g. for base64 images or large payloads)
@@ -116,7 +117,6 @@ app.get("/api/global-status", async (req, res) => {
 app.get("/api/questions", async (req, res) => {
   try {
     const questions = await Question.find();
-    console.log("[GET /api/questions]", questions);
     res.json(questions);
   } catch (err) {
     console.error("[GET /api/questions] Error:", err);
@@ -278,6 +278,9 @@ io.on("connection", async (socket) => {
   // Sende aktuellen globalen Status direkt nach Verbindung
   const status = await GlobalStatus.findOne();
   socket.emit("resultView", status?.view || "default");
+  if (latestVideoCacheStatus) {
+    socket.emit("resultVideoCacheStatus", latestVideoCacheStatus);
+  }
 
   socket.on("getActiveQuestion", async () => {
     const question = await Question.findOne({ active: true });
@@ -307,6 +310,10 @@ io.on("connection", async (socket) => {
     }
     await statusDoc.save();
     io.emit("resultView", view);
+  });
+  socket.on("resultVideoCacheStatus", (payload) => {
+    latestVideoCacheStatus = payload;
+    socket.broadcast.emit("resultVideoCacheStatus", payload);
   });
 });
 

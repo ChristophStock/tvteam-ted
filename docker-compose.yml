@@ -25,6 +25,9 @@ services:
     container_name: voting-frontend
     environment:
       - VITE_VOTING_TITLE=Masked Singer Voting
+    volumes:
+      - ./frontend/public/videos:/app/public/videos:ro
+      - ./frontend/public/videos:/app/dist/videos:ro
     depends_on:
       - backend
   nginx:

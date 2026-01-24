@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
@@ -19,10 +19,26 @@ import {
   TextField,
   Chip,
   Stack,
+  LinearProgress,
 } from "@mui/material";
 import { io } from "socket.io-client";
+import { RESULT_VIDEOS } from "../videoManifest";
 
 const socket = io({ path: "/socket.io" });
+
+const AUTH_STATUS_KEY = "controlAuthStatus";
+const AUTH_SIGNATURE_KEY = "controlAuthSignature";
+
+// Simple deterministic hash avoids storing the raw password in localStorage
+const computePasswordSignature = (value) => {
+  if (!value) return "";
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash.toString();
+};
 
 export default function ControlPage() {
   const [questions, setQuestions] = useState([]);
@@ -37,6 +53,8 @@ export default function ControlPage() {
   const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [config, setConfig] = useState({ controlPassword: "", allowedHosts: "" });
+  const [videoCacheStatus, setVideoCacheStatus] = useState(null);
+  const activeIdRef = useRef(null);
 
   // Edit dialog state
   const [editOpen, setEditOpen] = useState(false);
@@ -129,6 +147,10 @@ export default function ControlPage() {
     socket.emit("setResultView", view);
   };
 
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
+
   // Hole globalen Status beim Laden
   useEffect(() => {
     fetch("/api/global-status")
@@ -138,6 +160,14 @@ export default function ControlPage() {
       });
   }, []);
 
+  useEffect(() => {
+    const handleCacheStatus = (payload) => setVideoCacheStatus(payload);
+    socket.on("resultVideoCacheStatus", handleCacheStatus);
+    return () => {
+      socket.off("resultVideoCacheStatus", handleCacheStatus);
+    };
+  }, []);
+
   // Hole Config (Passwort, Domain) zur Laufzeit
   useEffect(() => {
     fetch("/api/config")
@@ -145,26 +175,103 @@ export default function ControlPage() {
       .then(setConfig);
   }, []);
 
-  const fetchQuestions = () => {
+  useEffect(() => {
+    if (!config.controlPassword) return;
+    if (typeof window === "undefined" || !window.localStorage) return;
+    const storedStatus = window.localStorage.getItem(AUTH_STATUS_KEY);
+    const storedSignature = window.localStorage.getItem(AUTH_SIGNATURE_KEY);
+    const currentSignature = computePasswordSignature(config.controlPassword);
+    if (storedStatus === "true" && storedSignature === currentSignature) {
+      setAuthenticated(true);
+    } else if (storedStatus || storedSignature) {
+      window.localStorage.removeItem(AUTH_STATUS_KEY);
+      window.localStorage.removeItem(AUTH_SIGNATURE_KEY);
+    }
+  }, [config.controlPassword]);
+
+  const fetchQuestions = useCallback(() => {
     fetch("/api/questions")
       .then((res) => res.json())
-      .then(setQuestions);
-  };
+      .then((data) => {
+        setQuestions(data);
+        const activeQuestion = data.find((q) => q.active && !q.closed);
+        if (activeQuestion) {
+          setActiveId(activeQuestion._id);
+          setLiveResults(activeQuestion);
+          activeIdRef.current = activeQuestion._id;
+        } else if (activeIdRef.current) {
+          setLiveResults(null);
+          setActiveId(null);
+          activeIdRef.current = null;
+        }
+      })
+      .catch((err) => {
+        console.warn("Fragen konnten nicht geladen werden", err);
+      });
+  }, []);
+
+  const mergeQuestionUpdate = useCallback((updatedQuestion) => {
+    if (!updatedQuestion || !updatedQuestion._id) return;
+    setQuestions((prev) => {
+      if (!Array.isArray(prev)) return prev;
+      const idx = prev.findIndex((q) => q._id === updatedQuestion._id);
+      if (idx === -1) {
+        return [...prev, updatedQuestion];
+      }
+      const next = [...prev];
+      next[idx] = { ...next[idx], ...updatedQuestion };
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     fetchQuestions();
-    socket.on("questionActivated", (q) => setActiveId(q._id));
-    socket.on("questionClosed", (q) => setActiveId(null));
-    socket.on("voteUpdate", (q) => {
-      if (q && q._id === activeId) setLiveResults(q);
-    });
-    return () => {
-      socket.off("questionActivated");
-      socket.off("questionClosed");
-      socket.off("voteUpdate");
+
+    const handleQuestionActivated = (question) => {
+      if (!question) return;
+      mergeQuestionUpdate(question);
+      setActiveId(question._id);
+      setLiveResults(question);
+      activeIdRef.current = question._id;
     };
-    // eslint-disable-next-line
-  }, []);
+
+    const handleQuestionClosed = (question) => {
+      if (question) {
+        mergeQuestionUpdate(question);
+        setLiveResults(question);
+      } else {
+        setLiveResults(null);
+      }
+      setActiveId(null);
+      activeIdRef.current = null;
+    };
+
+    const handleVoteUpdate = (question) => {
+      if (!question) return;
+      mergeQuestionUpdate(question);
+      if (activeIdRef.current === question._id || question.active) {
+        setActiveId(question._id);
+        setLiveResults(question);
+        activeIdRef.current = question._id;
+      }
+    };
+
+    socket.on("questionActivated", handleQuestionActivated);
+    socket.on("questionClosed", handleQuestionClosed);
+    socket.on("voteUpdate", handleVoteUpdate);
+
+    return () => {
+      socket.off("questionActivated", handleQuestionActivated);
+      socket.off("questionClosed", handleQuestionClosed);
+      socket.off("voteUpdate", handleVoteUpdate);
+    };
+  }, [fetchQuestions, mergeQuestionUpdate]);
+
+  useEffect(() => {
+    if (!activeId) return undefined;
+    const refreshInterval = setInterval(fetchQuestions, 4000);
+    return () => clearInterval(refreshInterval);
+  }, [activeId, fetchQuestions]);
 
   // Update liveResults when activeId or questions change
   useEffect(() => {
@@ -180,6 +287,12 @@ export default function ControlPage() {
     e.preventDefault();
     if (password === config.controlPassword) {
       setAuthenticated(true);
+      if (typeof window !== "undefined" && window.localStorage) {
+        const signature = computePasswordSignature(config.controlPassword);
+        window.localStorage.setItem(AUTH_STATUS_KEY, "true");
+        window.localStorage.setItem(AUTH_SIGNATURE_KEY, signature);
+      }
+      setPassword("");
     } else {
       alert("Falsches Passwort");
     }
@@ -346,6 +459,52 @@ export default function ControlPage() {
         {resultView === "singing" && (
           <Box mt={2}>
             <MaskedSingerLogo style={{ width: '100%', margin: '0 auto' }} imgStyle={{ maxWidth: 400, width: '80vw', height: 'auto' }} />
+          </Box>
+        )}
+        {RESULT_VIDEOS.length > 0 && (
+          <Box mt={3}>
+            <Typography variant="subtitle1" gutterBottom>Video-Einspieler</Typography>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+              {RESULT_VIDEOS.map((video) => (
+                <Button
+                  key={video.id}
+                  variant={resultView === video.id ? "contained" : "outlined"}
+                  color={resultView === video.id ? "secondary" : "inherit"}
+                  onClick={() => setResultScreen(video.id)}
+                >
+                  {video.label}
+                </Button>
+              ))}
+            </Stack>
+            <Box mt={2} p={2} sx={{ background: '#f5f5f5', borderRadius: 2 }}>
+              <Typography variant="body2">
+                Cache-Status: {videoCacheStatus ? `${videoCacheStatus.readyCount}/${videoCacheStatus.total} Clips bereit${videoCacheStatus.allReady ? " · vollständig" : ""}` : "Wartet auf Rückmeldung von Ergebnis-Display"}
+              </Typography>
+              {videoCacheStatus?.details && (
+                <Stack spacing={1} mt={2}>
+                  {videoCacheStatus.details.map((detail) => {
+                    const progress = Math.round((detail.progress || (detail.status === 'ready' ? 1 : 0)) * 100);
+                    const statusLabel = detail.status === 'ready'
+                      ? 'bereit'
+                      : detail.status === 'error'
+                        ? `Fehler (${detail.error || 'unbekannt'})`
+                        : `${progress}%`;
+                    return (
+                      <Box key={detail.id}>
+                        <Typography variant="caption" sx={{ display: 'block', mb: 0.5 }}>
+                          {detail.label}: {statusLabel}
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={detail.status === 'ready' ? 100 : detail.status === 'error' ? 0 : progress}
+                          color={detail.status === 'error' ? 'error' : 'primary'}
+                        />
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              )}
+            </Box>
           </Box>
         )}
       </Box>
@@ -534,43 +693,47 @@ export default function ControlPage() {
           <Typography variant="h6" gutterBottom>
             Live-Ergebnis: {liveResults.text}
           </Typography>
-          {liveResults.options.map((opt, idx) => (
-            <Box key={opt._id || idx} display="flex" alignItems="center" mb={1}>
-              <Box minWidth={120} display="flex" alignItems="center" gap={1}>
-                <span>{opt.text}</span>
-                {opt.imageUrl && (
-                  <img src={opt.imageUrl} alt="Option" style={{ maxHeight: 24, maxWidth: 36, borderRadius: 3 }} />
-                )}
-              </Box>
-              <Box
-                flex={1}
-                bgcolor="#444"
-                borderRadius={1}
-                mx={1}
-                height={24}
-                position="relative"
-              >
-                <Box
-                  bgcolor="#ffb300"
-                  height={24}
-                  borderRadius={1}
-                  width={`$
-                    liveResults.results?.[idx]
-                      ? (liveResults.results[idx] /
-                          Math.max(1, Math.max(...(liveResults.results ?? [1])))) *
-                        100
-                      : 0
-                  }%`}
-                  position="absolute"
-                  top={0}
-                  left={0}
-                />
-              </Box>
-              <Box minWidth={32} textAlign="right">
-                {liveResults.results?.[idx] ?? 0}
-              </Box>
-            </Box>
-          ))}
+          {(() => {
+            const resultValues = liveResults.results ?? [];
+            const totalVotes = resultValues.reduce((sum, val) => sum + (val || 0), 0);
+            return liveResults.options.map((opt, idx) => {
+              const votes = resultValues[idx] ?? 0;
+              const percentage = totalVotes > 0 ? (votes / totalVotes) * 100 : 0;
+              const roundedPercentage = Math.round(percentage);
+              return (
+                <Box key={opt._id || idx} display="flex" alignItems="center" mb={1}>
+                  <Box minWidth={120} display="flex" alignItems="center" gap={1}>
+                    <span>{opt.text}</span>
+                    {opt.imageUrl && (
+                      <img src={opt.imageUrl} alt="Option" style={{ maxHeight: 24, maxWidth: 36, borderRadius: 3 }} />
+                    )}
+                  </Box>
+                  <Box
+                    flex={1}
+                    bgcolor="#444"
+                    borderRadius={1}
+                    mx={1}
+                    height={24}
+                    position="relative"
+                  >
+                    <Box
+                      bgcolor="#ffb300"
+                      height={24}
+                      borderRadius={1}
+                      width={`${percentage}%`}
+                      position="absolute"
+                      top={0}
+                      left={0}
+                    />
+                  </Box>
+                  <Box minWidth={60} textAlign="right" display="flex" justifyContent="flex-end" gap={1}>
+                    <span>{votes}</span>
+                    <span style={{ opacity: 0.8 }}>{roundedPercentage}%</span>
+                  </Box>
+                </Box>
+              );
+            });
+          })()}
         </Box>
       )}
     </Container>
