@@ -17,6 +17,7 @@ function VotePage() {
   // 🎭: masks, 🎤: microphone, ✨: stars, 🎶: notes, 🍺: beer, 🍸: cocktail
   const emojiList = ["🎭", "🎤", "✨", "🎶", "🍺", "🍸"];
   const emojiRefs = useRef([]);
+  const activeQuestionId = question ? question._id : null;
 
 
   // Fetch voting status AND global status on mount
@@ -53,6 +54,11 @@ function VotePage() {
       socket.off("resultView");
     };
   }, []);
+
+  useEffect(() => {
+    // Allow users to vote again whenever the active question changes
+    setVoted(false);
+  }, [activeQuestionId]);
 
   const vote = (idx) => {
     fetch(`/api/questions/${question._id}/vote`, {

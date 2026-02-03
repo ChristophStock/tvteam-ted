@@ -216,10 +216,14 @@ app.post(
 
 app.post("/api/questions/:id/activate", async (req, res) => {
   await Question.updateMany({}, { active: false });
-  const question = await Question.findByIdAndUpdate(req.params.id, {
-    active: true,
-    closed: false,
-  });
+  const question = await Question.findByIdAndUpdate(
+    req.params.id,
+    {
+      active: true,
+      closed: false,
+    },
+    { new: true },
+  );
   console.log(
     `[STATUS] Frage aktiviert: id=${req.params.id}, text='${
       question?.text || "?"
@@ -230,10 +234,14 @@ app.post("/api/questions/:id/activate", async (req, res) => {
 });
 
 app.post("/api/questions/:id/close", async (req, res) => {
-  const question = await Question.findByIdAndUpdate(req.params.id, {
-    closed: true,
-    active: false,
-  });
+  const question = await Question.findByIdAndUpdate(
+    req.params.id,
+    {
+      closed: true,
+      active: false,
+    },
+    { new: true },
+  );
   console.log(
     `[STATUS] Frage geschlossen: id=${req.params.id}, text='${
       question?.text || "?"
