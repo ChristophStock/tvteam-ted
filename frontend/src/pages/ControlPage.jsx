@@ -256,14 +256,24 @@ export default function ControlPage() {
       }
     };
 
+    const handleQuestionUpdated = (question) => {
+      if (!question) return;
+      mergeQuestionUpdate(question);
+      if (activeIdRef.current === question._id) {
+        setLiveResults(question);
+      }
+    };
+
     socket.on("questionActivated", handleQuestionActivated);
     socket.on("questionClosed", handleQuestionClosed);
     socket.on("voteUpdate", handleVoteUpdate);
+    socket.on("questionUpdated", handleQuestionUpdated);
 
     return () => {
       socket.off("questionActivated", handleQuestionActivated);
       socket.off("questionClosed", handleQuestionClosed);
       socket.off("voteUpdate", handleVoteUpdate);
+      socket.off("questionUpdated", handleQuestionUpdated);
     };
   }, [fetchQuestions, mergeQuestionUpdate]);
 

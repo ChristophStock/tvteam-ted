@@ -124,6 +124,68 @@ app.get("/api/questions", async (req, res) => {
   }
 });
 
+app.put("/api/questions/:id", async (req, res) => {
+  try {
+    const { text, options } = req.body;
+    const question = await Question.findById(req.params.id);
+    if (!question) {
+      return res.status(404).json({ error: "Frage nicht gefunden" });
+    }
+
+    if (typeof text === "string") {
+      question.text = text;
+    }
+
+    if (Array.isArray(options)) {
+      const previousOptions = Array.isArray(question.options)
+        ? question.options
+        : [];
+      const sanitizedOptions = options.map((incoming = {}, idx) => {
+        const prevImageUrl = previousOptions[idx]?.imageUrl || null;
+        if (incoming === null || typeof incoming !== "object") {
+          return {
+            text: "",
+            imageUrl: prevImageUrl,
+          };
+        }
+
+        let nextImageUrl = null;
+        if (incoming.imageUrl === null) {
+          nextImageUrl = null;
+        } else if (
+          typeof incoming.imageUrl === "string" &&
+          incoming.imageUrl.trim() !== ""
+        ) {
+          nextImageUrl = incoming.imageUrl.trim();
+          if (nextImageUrl.startsWith("data:")) {
+            nextImageUrl = prevImageUrl;
+          }
+        } else {
+          nextImageUrl = prevImageUrl;
+        }
+
+        return {
+          text: incoming.text || "",
+          imageUrl: nextImageUrl,
+        };
+      });
+
+      question.options = sanitizedOptions;
+      const oldResults = Array.isArray(question.results)
+        ? question.results
+        : [];
+      question.results = sanitizedOptions.map((_, idx) => oldResults[idx] || 0);
+    }
+
+    await question.save();
+    io.emit("questionUpdated", question);
+    res.json(question);
+  } catch (err) {
+    console.error("[PUT /api/questions/:id] Error:", err);
+    res.status(500).json({ error: "Fehler beim Aktualisieren der Frage" });
+  }
+});
+
 // Delete a question
 app.delete("/api/questions/:id", async (req, res) => {
   try {

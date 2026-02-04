@@ -18,6 +18,7 @@ function VotePage() {
   const emojiList = ["🎭", "🎤", "✨", "🎶", "🍺", "🍸"];
   const emojiRefs = useRef([]);
   const activeQuestionId = question ? question._id : null;
+  const activeQuestionRef = useRef(null);
 
 
   // Fetch voting status AND global status on mount
@@ -47,13 +48,27 @@ function VotePage() {
       setVotingActive(false);
     });
     socket.on("resultView", (v) => setView(v));
+    const handleQuestionUpdated = (updatedQuestion) => {
+      const current = activeQuestionRef.current;
+      if (!current || !updatedQuestion || current._id !== updatedQuestion._id) {
+        return;
+      }
+      setQuestion(updatedQuestion);
+      setVotingActive(!updatedQuestion.closed && !!updatedQuestion.active);
+    };
+    socket.on("questionUpdated", handleQuestionUpdated);
     return () => {
       socket.off("activeQuestion");
       socket.off("questionActivated");
       socket.off("questionClosed");
       socket.off("resultView");
+      socket.off("questionUpdated", handleQuestionUpdated);
     };
   }, []);
+
+  useEffect(() => {
+    activeQuestionRef.current = question;
+  }, [question]);
 
   useEffect(() => {
     // Allow users to vote again whenever the active question changes
